@@ -1,88 +1,86 @@
 package com.imirly.backend.entity;
 
+import com.imirly.backend.entity.enums.Role;
 import jakarta.persistence.*;
+import lombok.*;
+import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.UpdateTimestamp;
+
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "users")
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class User {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false)
+    @Column(nullable = false, length = 100)
     private String nombre;
 
-    @Column(nullable = false)
-    private String apellidos;
-
-    @Column(nullable = false, unique = true)
+    @Column(nullable = false, unique = true, length = 150)
     private String email;
-
-    @Column(nullable = false, unique = true, updatable = false)
-    private String dni;
 
     @Column(nullable = false)
     private String password;
 
-    @Column(nullable = false)
-    private LocalDateTime createdAt = LocalDateTime.now();
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    @Builder.Default
+    private Role role = Role.USER;
 
-    // Getters y setters (completos)
-    public Long getId() {
-        return id;
+    // Campos opcionales inicialmente, obligatorios para publicar
+    @Column(length = 20)
+    private String telefono;
+
+    private LocalDate fechaNacimiento;
+
+    @Column(length = 200)
+    private String direccionCalle;
+
+    @Column(length = 100)
+    private String direccionCiudad;
+
+    @Column(length = 10)
+    private String direccionCodigoPostal;
+
+    @Column(length = 500)
+    private String fotoPerfilUrl;
+
+    @CreationTimestamp
+    private LocalDateTime createdAt;
+
+    @UpdateTimestamp
+    private LocalDateTime updatedAt;
+
+    private LocalDateTime lastLoginAt;
+
+    @OneToMany(mappedBy = "propietario", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private List<Anuncio> anuncios = new ArrayList<>();
+
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private List<Favorite> favorites = new ArrayList<>();
+
+    // Método de utilidad para verificar si puede publicar
+    public boolean puedePublicarAnuncio() {
+        return telefono != null && !telefono.isBlank() &&
+                fechaNacimiento != null &&
+                direccionCalle != null && !direccionCalle.isBlank() &&
+                direccionCiudad != null && !direccionCiudad.isBlank() &&
+                direccionCodigoPostal != null && !direccionCodigoPostal.isBlank();
     }
 
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public String getNombre() {
-        return nombre;
-    }
-
-    public void setNombre(String nombre) {
-        this.nombre = nombre;
-    }
-
-    public String getApellidos() {
-        return apellidos;
-    }
-
-    public void setApellidos(String apellidos) {
-        this.apellidos = apellidos;
-    }
-
-    public String getEmail() {
-        return email;
-    }
-
-    public void setEmail(String email) {
-        this.email = email;
-    }
-
-    public String getDni() {
-        return dni;
-    }
-
-    public void setDni(String dni) {
-        this.dni = dni;
-    }
-
-    public String getPassword() {
-        return password;
-    }
-
-    public void setPassword(String password) {
-        this.password = password;
-    }
-
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt = createdAt;
+    public boolean tieneDatosCompletos() {
+        return puedePublicarAnuncio();
     }
 }

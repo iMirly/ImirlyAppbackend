@@ -1,44 +1,34 @@
 package com.imirly.backend.entity;
 
 import jakarta.persistence.*;
+import lombok.*;
 
 @Entity
 @Table(name = "subcategories")
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class Subcategory {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false)
-    private String name;
+    @Column(nullable = false, length = 50)
+    private String codigo; // fontaneria, limpieza, etc.
 
-    @ManyToOne
+    @Column(nullable = false, length = 100)
+    private String nombre;
+
+    @Column(length = 100)
+    private String imagen;
+
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "category_id", nullable = false)
     private Category category;
 
-    // Getters y setters
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public String getName() {
-        return name;
-    }
-
-    public void setName(String name) {
-        this.name = name;
-    }
-
-    public Category getCategory() {
-        return category;
-    }
-
-    public void setCategory(Category category) {
-        this.category = category;
-    }
+    // JSON Schema o configuración de campos (opcional, para validación dinámica)
+    @Column(columnDefinition = "TEXT")
+    private String formConfigJson;
 }

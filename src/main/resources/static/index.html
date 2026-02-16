@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>iMirly — Servicios</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+<div class="container">
+
+  <!-- HEADER -->
+  <div class="toolbar">
+    <h2 style="margin:0; flex:1;">iMirly — Servicios Profesionales</h2>
+    <span id="sessionInfo" class="muted"></span>
+    <button id="btnH2Console" class="hidden secondary" onclick="openH2Console()">🗄️ H2 Console</button>
+    <button id="btnLogout" class="hidden" onclick="logout()">Cerrar sesión</button>
+  </div>
+
+  <!-- =========================
+       SCREEN: AUTH (LOGIN + REGISTER)
+  ========================== -->
+  <section id="screen-auth" class="card">
+    <h3>Acceso</h3>
+    <p class="muted">Inicia sesión si ya tienes cuenta o regístrate para ofrecer o contratar servicios.</p>
+
+    <div class="row">
+
+      <!-- LOGIN -->
+      <div class="card">
+        <h4>Iniciar sesión</h4>
+
+        <label for="loginEmail">Email *</label>
+        <input id="loginEmail" type="email" placeholder="tu@email.com" />
+        <div id="err-loginEmail" class="error"></div>
+
+        <label for="loginPassword">Contraseña *</label>
+        <input id="loginPassword" type="password" placeholder="Tu contraseña" />
+        <div id="err-loginPassword" class="error"></div>
+
+        <button class="primary" onclick="login()">Iniciar sesión</button>
+        <div id="err-loginGeneral" class="error"></div>
+      </div>
+
+      <!-- REGISTER -->
+      <div class="card">
+        <h4>Crear cuenta</h4>
+
+        <label for="regNombre">Nombre completo *</label>
+        <input id="regNombre" type="text" placeholder="Tu nombre" />
+        <div id="err-regNombre" class="error"></div>
+
+        <label for="regEmail">Email *</label>
+        <input id="regEmail" type="email" placeholder="tu@email.com" />
+        <div id="err-regEmail" class="error"></div>
+
+        <label for="regPassword">Contraseña *</label>
+        <input id="regPassword" type="password" placeholder="Mínimo 6 caracteres" />
+        <div id="err-regPassword" class="error"></div>
+
+        <label for="regConfirmPassword">Confirmar contraseña *</label>
+        <input id="regConfirmPassword" type="password" placeholder="Repite tu contraseña" />
+        <div id="err-regConfirmPassword" class="error"></div>
+
+        <button class="primary" onclick="register()">Crear cuenta</button>
+        <div id="err-registerGeneral" class="error"></div>
+      </div>
+
+    </div>
+  </section>
+
+
+  <!-- =========================
+       SCREEN: DASHBOARD (LOGUEADO)
+  ========================== -->
+  <section id="screen-dashboard" class="hidden">
+    <div class="row">
+
+      <!-- PERFIL -->
+      <div class="card" style="flex: 0 0 300px;">
+        <h3>Mi cuenta</h3>
+
+        <div id="profileInfo" class="profile-box">
+          <p><strong id="profileName"></strong></p>
+          <p id="profileEmail" class="muted"></p>
+          <p id="profileCompleteness" class="badge"></p>
+        </div>
+
+        <button onclick="showEditProfileForm()">✏️ Editar perfil</button>
+        <button onclick="showChangePasswordForm()">🔒 Cambiar contraseña</button>
+
+        <hr />
+
+        <button class="danger" onclick="deleteAccount()">🗑️ Eliminar cuenta</button>
+
+        <hr />
+
+        <button class="primary" onclick="goExplore()">🔍 Ver servicios disponibles</button>
+
+        <!-- Formulario editar perfil -->
+        <div id="editProfileForm" class="hidden form-section">
+          <h4>Completar datos personales</h4>
+          <p class="muted small">Necesarios para publicar servicios</p>
+
+          <label>Teléfono *</label>
+          <input id="editTelefono" type="tel" placeholder="612345678" maxlength="9">
+
+          <label>Fecha de nacimiento *</label>
+          <input id="editFechaNacimiento" type="date">
+
+          <label>Dirección (calle y número) *</label>
+          <input id="editCalle" type="text" placeholder="Calle Mayor 45, 3ºA">
+
+          <label>Ciudad *</label>
+          <input id="editCiudad" type="text" placeholder="Madrid">
+
+          <label>Código Postal *</label>
+          <input id="editCP" type="text" placeholder="28013" maxlength="5">
+
+          <label>Foto de perfil (URL)</label>
+          <input id="editFoto" type="url" placeholder="https://...">
+
+          <button class="primary" onclick="updateProfile()">💾 Guardar cambios</button>
+          <button class="secondary" onclick="hideEditProfileForm()">Cancelar</button>
+        </div>
+
+        <!-- Formulario cambiar contraseña -->
+        <div id="changePasswordForm" class="hidden form-section">
+          <h4>Cambiar contraseña</h4>
+
+          <label>Contraseña actual</label>
+          <input id="currentPassword" type="password">
+
+          <label>Nueva contraseña</label>
+          <input id="newPassword" type="password">
+
+          <label>Confirmar nueva contraseña</label>
+          <input id="confirmNewPassword" type="password">
+
+          <button class="primary" onclick="updatePassword()">Cambiar contraseña</button>
+          <button class="secondary" onclick="hideChangePasswordForm()">Cancelar</button>
+        </div>
+      </div>
+
+      <!-- CREAR ANUNCIO (PASO 1) -->
+      <div class="card" style="flex: 1;">
+        <h3>Publicar servicio</h3>
+        <p class="muted" id="anuncioStepIndicator">Paso 1 de 2: Información general</p>
+
+        <!-- PASO 1 -->
+        <div id="anuncioStep1">
+          <label for="anuncioImagen">Imagen del servicio (URL)</label>
+          <input id="anuncioImagen" type="url" placeholder="https://...">
+
+          <label for="anuncioCategoria">Categoría *</label>
+          <select id="anuncioCategoria" onchange="cargarSubcategorias()">
+            <option value="">Selecciona categoría</option>
+          </select>
+
+          <label for="anuncioSubcategoria">Subcategoría *</label>
+          <select id="anuncioSubcategoria" onchange="mostrarInfoSubcategoria()">
+            <option value="">Selecciona subcategoría</option>
+          </select>
+
+          <label for="anuncioTitulo">Título del servicio *</label>
+          <input id="anuncioTitulo" type="text" placeholder="Ej: Fontanero profesional con experiencia">
+
+          <label for="anuncioDescripcion">Descripción</label>
+          <textarea id="anuncioDescripcion" rows="3" placeholder="Describe tu experiencia y servicios..."></textarea>
+
+          <div class="row">
+            <div style="flex: 1;">
+              <label for="anuncioPrecio">Precio *</label>
+              <input id="anuncioPrecio" type="number" step="0.01" min="0" placeholder="50.00">
+            </div>
+            <div style="flex: 1;">
+              <label for="anuncioTipoPrecio">Tipo *</label>
+              <select id="anuncioTipoPrecio">
+                <option value="POR_HORA">Por hora</option>
+                <option value="POR_SERVICIO">Por servicio</option>
+                <option value="POR_SESION">Por sesión</option>
+                <option value="POR_PROYECTO">Por proyecto</option>
+                <option value="PRESUPUESTO">Presupuesto</option>
+              </select>
+            </div>
+          </div>
+
+          <label for="anuncioUbicacion">Ubicación *</label>
+          <input id="anuncioUbicacion" type="text" placeholder="Madrid Centro">
+
+          <button class="primary" onclick="crearAnuncioStep1()">Continuar →</button>
+        </div>
+
+        <!-- PASO 2 (dinámico según subcategoría) -->
+        <div id="anuncioStep2" class="hidden">
+          <div id="camposEspecificos">
+            <!-- Aquí se cargan los campos según la subcategoría -->
+          </div>
+
+          <div class="row">
+            <button class="secondary" onclick="volverStep1()">← Atrás</button>
+            <button class="primary" onclick="completarAnuncioStep2()">Publicar anuncio</button>
+          </div>
+        </div>
+
+        <div id="err-anuncioGeneral" class="error"></div>
+      </div>
+
+    </div>
+
+    <!-- MIS ANUNCIOS -->
+    <div class="card" style="margin-top: 16px;">
+      <div class="toolbar">
+        <h3 style="margin:0; flex:1;">Mis anuncios</h3>
+        <div>
+          <button class="secondary" onclick="filtrarMisAnuncios('todos')">Todos</button>
+          <button class="secondary" onclick="filtrarMisAnuncios('PUBLICADO')">Activos</button>
+          <button class="secondary" onclick="filtrarMisAnuncios('DESPUBLICADO')">Inactivos</button>
+          <button class="secondary" onclick="filtrarMisAnuncios('BORRADOR')">Borradores</button>
+        </div>
+        <button onclick="loadMisAnuncios()">🔄 Recargar</button>
+      </div>
+      <div id="misAnunciosList" class="list">
+        <p class="muted">Cargando...</p>
+      </div>
+    </div>
+  </section>
+
+
+  <!-- =========================
+       SCREEN: EXPLORE (SERVICIOS PÚBLICOS)
+  ========================== -->
+  <section id="screen-explore" class="hidden">
+    <div class="card">
+      <div class="toolbar">
+        <h3 style="margin:0; flex:1;">🔍 Explorar servicios</h3>
+        <button onclick="goDashboard()">← Volver a mi cuenta</button>
+        <button onclick="loadPublicAnuncios()">🔄 Recargar</button>
+      </div>
+
+      <!-- Filtros -->
+      <div class="filters">
+        <select id="filtroCategoria" onchange="filtrarPublicos()">
+          <option value="">Todas las categorías</option>
+        </select>
+        <input type="text" id="filtroBusqueda" placeholder="Buscar..." onkeyup="filtrarPublicos()">
+      </div>
+
+      <div id="publicAnunciosList" class="list"></div>
+      <div id="err-publicAnunciosGeneral" class="error"></div>
+    </div>
+  </section>
+
+</div>
+
+<script src="/js/app.js"></script>
+</body>
+</html>
