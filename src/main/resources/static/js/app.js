@@ -608,6 +608,9 @@ function resetFormularioAnuncio() {
     document.getElementById('anuncioCategoria').value = '';
     document.getElementById('anuncioSubcategoria').innerHTML = '<option value="">Selecciona subcategoría</option>';
 
+    // IMPORTANTE: Resetear botones también
+    resetBotonesFormulario();
+
     anuncioTemporal = null;
 }
 
@@ -704,9 +707,294 @@ async function eliminarAnuncio(id) {
     }
 }
 
-function editarAnuncio(id) {
-    alert('Función de editar: Implementar carga de datos en el formulario');
-    // Aquí cargarías los datos del anuncio en el formulario de creación
+// ==================== EDITAR ANUNCIO ====================
+
+async function editarAnuncio(id) {
+    console.log('Editando anuncio:', id);
+
+    try {
+        // 1. Obtener datos del anuncio
+        const response = await fetch(`${API_URL}/anuncios/${id}/edit`, {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+
+        if (!response.ok) {
+            throw new Error('Error al cargar el anuncio');
+        }
+
+        const anuncio = await response.json();
+        console.log('Datos del anuncio para editar:', anuncio);
+
+        // 2. Cargar datos en el formulario de Paso 1
+        cargarDatosEnFormulario(anuncio);
+
+        // 3. Guardar el ID del anuncio que se está editando
+        anuncioTemporal = {
+            id: anuncio.id,
+            editando: true,
+            statusAnterior: anuncio.status
+        };
+
+        // 4. Mostrar el formulario de edición (Paso 1)
+        document.getElementById('anuncioStep1').classList.remove('hidden');
+        document.getElementById('anuncioStep2').classList.add('hidden');
+        document.getElementById('anuncioStepIndicator').textContent = 'Editando anuncio - Paso 1 de 2';
+
+        // 5. Cambiar el botón "Continuar" por "Guardar cambios"
+        const btnContinuar = document.querySelector('#anuncioStep1 button[onclick="crearAnuncioStep1()"]');
+        if (btnContinuar) {
+            btnContinuar.textContent = 'Guardar cambios →';
+            btnContinuar.setAttribute('onclick', 'guardarEdicionStep1()');
+        }
+
+        // Scroll al formulario
+        document.getElementById('anuncioStep1').scrollIntoView({ behavior: 'smooth' });
+
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Error al cargar el anuncio: ' + error.message);
+    }
+}
+
+async function guardarEdicionStep1() {
+    clearErrors();
+
+    const data = {
+        titulo: document.getElementById('anuncioTitulo').value.trim(),
+        descripcion: document.getElementById('anuncioDescripcion').value.trim(),
+        precio: parseFloat(document.getElementById('anuncioPrecio').value),
+        tipoPrecio: document.getElementById('anuncioTipoPrecio').value,
+        ubicacion: document.getElementById('anuncioUbicacion').value.trim(),
+        imagenPrincipalUrl: document.getElementById('anuncioImagen').value.trim() || null,
+        categoryId: parseInt(document.getElementById('anuncioCategoria').value),
+        subcategoryId: parseInt(document.getElementById('anuncioSubcategoria').value)
+    };
+
+    // Validaciones
+    if (!data.titulo) return showError('anuncioGeneral', 'El título es obligatorio');
+    if (!data.precio || data.precio <= 0) return showError('anuncioGeneral', 'El precio debe ser mayor a 0');
+    if (!data.ubicacion) return showError('anuncioGeneral', 'La ubicación es obligatoria');
+    if (!data.categoryId) return showError('anuncioGeneral', 'Selecciona una categoría');
+    if (!data.subcategoryId) return showError('anuncioGeneral', 'Selecciona una subcategoría');
+
+    try {
+        // Actualizar el anuncio existente
+        const response = await fetch(`${API_URL}/anuncios/${anuncioTemporal.id}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authToken}`
+            },
+            body: JSON.stringify(data)
+        });
+
+        if (!response.ok) {
+            const error = await response.text();
+            throw new Error(error);
+        }
+
+        const anuncioActualizado = await response.json();
+        console.log('Anuncio actualizado:', anuncioActualizado);
+
+        // Actualizar anuncioTemporal
+        anuncioTemporal = { ...anuncioTemporal, ...anuncioActualizado };
+
+        // Mostrar paso 2 para editar metadata
+        document.getElementById('anuncioStep1').classList.add('hidden');
+        document.getElementById('anuncioStep2').classList.remove('hidden');
+        document.getElementById('anuncioStepIndicator').textContent = 'Editando anuncio - Paso 2 de 2: Detalles específicos';
+
+        // Generar campos dinámicos y cargar valores existentes
+        generarCamposStep2(data.subcategoryId);
+        await cargarMetadataExistente(anuncioTemporal.id);
+
+        // Cambiar botón del paso 2
+        const btnPublicar = document.querySelector('#anuncioStep2 button[onclick="completarAnuncioStep2()"]');
+        if (btnPublicar) {
+            btnPublicar.textContent = 'Guardar y republicar';
+            btnPublicar.setAttribute('onclick', 'guardarEdicionStep2()');
+        }
+
+    } catch (error) {
+        showError('anuncioGeneral', error.message);
+    }
+}
+async function guardarEdicionStep2() {
+    // Recoger datos de los campos dinámicos
+    const metadata = {
+        anosExperiencia: document.getElementById('metaExperiencia').value,
+        disponibilidad: Array.from(document.querySelectorAll('.checkbox-group input[type="checkbox"]:checked'))
+            .map(cb => cb.value),
+        servicioDomicilio: document.getElementById('metaDomicilio').checked
+    };
+
+    if (document.getElementById('metaUrgencias')) {
+        metadata.urgencias = document.getElementById('metaUrgencias').checked;
+    }
+    if (document.getElementById('metaOnline')) {
+        metadata.clasesOnline = document.getElementById('metaOnline').checked;
+    }
+    if (document.getElementById('metaTitulacion')) {
+        metadata.titulacion = document.getElementById('metaTitulacion').value;
+    }
+
+    try {
+        // Actualizar metadata
+        const response = await fetch(`${API_URL}/anuncios/${anuncioTemporal.id}/metadata`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authToken}`
+            },
+            body: JSON.stringify({
+                anuncioId: anuncioTemporal.id,
+                metadata: metadata
+            })
+        });
+
+        if (!response.ok) throw new Error('Error al guardar detalles');
+
+        // Republicar automáticamente
+        await fetch(`${API_URL}/anuncios/${anuncioTemporal.id}/publicar`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+
+        alert('✅ Anuncio actualizado y republicado correctamente');
+
+        // Resetear formulario y recargar lista
+        resetFormularioAnuncio();
+        resetBotonesFormulario(); // Restaurar textos originales de botones
+        loadMisAnuncios();
+
+    } catch (error) {
+        alert('❌ Error: ' + error.message);
+    }
+}
+
+function resetBotonesFormulario() {
+    // Restaurar botón del paso 1 (el que tiene onclick="guardarEdicionStep1()")
+    const btnStep1 = document.querySelector('#anuncioStep1 button.primary');
+    if (btnStep1) {
+        btnStep1.textContent = 'Continuar →';
+        btnStep1.onclick = crearAnuncioStep1; // Mejor usar onclick en lugar de setAttribute
+    }
+
+    // Restaurar botón del paso 2
+    const btnStep2 = document.querySelector('#anuncioStep2 button.primary');
+    if (btnStep2) {
+        btnStep2.textContent = 'Publicar anuncio';
+        btnStep2.onclick = completarAnuncioStep2;
+    }
+
+    // Limpiar flag de edición
+    if (anuncioTemporal) {
+        anuncioTemporal.editando = false;
+    }
+}
+
+async function cargarMetadataExistente(anuncioId) {
+    try {
+        const response = await fetch(`${API_URL}/anuncios/${anuncioId}`, {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+
+        if (!response.ok) {
+            throw new Error('Error al cargar metadata');
+        }
+
+        const anuncio = await response.json();
+        console.log('Cargando metadata:', anuncio.metadata);
+
+        if (anuncio.metadata) {
+            const meta = anuncio.metadata;
+
+            // Cargar años de experiencia
+            const selectExperiencia = document.getElementById('metaExperiencia');
+            if (selectExperiencia && meta.anosExperiencia) {
+                selectExperiencia.value = meta.anosExperiencia;
+            }
+
+            // Cargar disponibilidad (checkboxes)
+            if (meta.disponibilidad && Array.isArray(meta.disponibilidad)) {
+                const checkboxes = document.querySelectorAll('.checkbox-group input[type="checkbox"]');
+                checkboxes.forEach(cb => {
+                    cb.checked = meta.disponibilidad.includes(cb.value);
+                });
+            }
+
+            // Cargar servicio a domicilio
+            const chkDomicilio = document.getElementById('metaDomicilio');
+            if (chkDomicilio && meta.servicioDomicilio) {
+                chkDomicilio.checked = meta.servicioDomicilio;
+            }
+
+            // Campos opcionales
+            const chkUrgencias = document.getElementById('metaUrgencias');
+            if (chkUrgencias && meta.urgencias) {
+                chkUrgencias.checked = meta.urgencias;
+            }
+
+            const chkOnline = document.getElementById('metaOnline');
+            if (chkOnline && meta.clasesOnline) {
+                chkOnline.checked = meta.clasesOnline;
+            }
+
+            const txtTitulacion = document.getElementById('metaTitulacion');
+            if (txtTitulacion && meta.titulacion) {
+                txtTitulacion.value = meta.titulacion;
+            }
+        }
+    } catch (error) {
+        console.error('Error cargando metadata:', error);
+    }
+}
+
+
+function cargarDatosEnFormulario(anuncio) {
+    console.log('Cargando anuncio en formulario:', anuncio);
+
+    // Verificar que tenemos los datos necesarios
+    if (!anuncio) {
+        console.error('No hay datos de anuncio para cargar');
+        return;
+    }
+
+    // Extraer IDs correctamente (pueden venir como objetos o IDs directos)
+    const categoryId = anuncio.category?.id || anuncio.categoryId || anuncio.category_id;
+    const subcategoryId = anuncio.subcategory?.id || anuncio.subcategoryId || anuncio.subcategory_id;
+
+    console.log('Category ID:', categoryId, 'Subcategory ID:', subcategoryId);
+
+    // Función para cargar el resto de campos
+    const cargarCampos = () => {
+        document.getElementById('anuncioCategoria').value = categoryId || '';
+        cargarSubcategorias();
+
+        // Esperar a que carguen las subcategorías
+        setTimeout(() => {
+            document.getElementById('anuncioSubcategoria').value = subcategoryId || '';
+            console.log('Subcategoría seleccionada:', document.getElementById('anuncioSubcategoria').value);
+        }, 200);
+
+        // Cargar resto de campos
+        document.getElementById('anuncioTitulo').value = anuncio.titulo || '';
+        document.getElementById('anuncioDescripcion').value = anuncio.descripcion || '';
+        document.getElementById('anuncioPrecio').value = anuncio.precio || '';
+        document.getElementById('anuncioTipoPrecio').value = anuncio.tipoPrecio || 'POR_HORA';
+        document.getElementById('anuncioUbicacion').value = anuncio.ubicacion || '';
+        document.getElementById('anuncioImagen').value = anuncio.imagenPrincipalUrl || '';
+    };
+
+    // Cargar categorías primero si no están cargadas
+    if (categorias.length === 0) {
+        console.log('Categorías no cargadas, cargando...');
+        cargarCategorias().then(() => {
+            cargarCampos();
+        });
+    } else {
+        cargarCampos();
+    }
 }
 
 // ==================== EXPLORAR ANUNCIOS PÚBLICOS ====================

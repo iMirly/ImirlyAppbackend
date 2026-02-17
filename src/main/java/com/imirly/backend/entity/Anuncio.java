@@ -89,6 +89,15 @@ public class Anuncio {
         this.publishedAt = LocalDateTime.now();
     }
 
+    // En Anuncio.java
+    public void republicar() {
+        if (this.status != AnuncioStatus.DESPUBLICADO) {
+            throw new IllegalStateException("Solo se pueden republicar anuncios despublicados");
+        }
+        this.status = AnuncioStatus.PUBLICADO;
+        // No actualizamos publishedAt para mantener la fecha original
+    }
+
     public void despublicar() {
         if (status == AnuncioStatus.PUBLICADO) {
             this.status = AnuncioStatus.DESPUBLICADO;

@@ -134,4 +134,15 @@ public class AnuncioController {
         anuncioService.delete(id, userDetails.getId());
         return ResponseEntity.ok().body("Anuncio eliminado correctamente");
     }
+
+    // ==================== EDITAR ====================
+
+
+    @GetMapping("/{id}/edit")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<AnuncioDetailResponse> getAnuncioForEdit(
+            @PathVariable Long id,
+            @AuthenticationPrincipal UserDetailsImpl userDetails) {
+        return ResponseEntity.ok(anuncioService.getByIdForEdit(id, userDetails.getId()));
+    }
 }

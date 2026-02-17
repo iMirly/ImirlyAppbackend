@@ -28,4 +28,4 @@ spring:
 logging:
   level:
     org.springframework.security: DEBUG
-    com.imirly: DEBUG
+    com.imirly: INFO

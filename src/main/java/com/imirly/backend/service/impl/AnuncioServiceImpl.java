@@ -120,6 +120,7 @@ public class AnuncioServiceImpl implements AnuncioService {
         return mapToDetailResponse(anuncio, false);
     }
 
+
     @Override
     @Transactional
     public AnuncioResponse publicar(Long anuncioId, Long userId) {
@@ -130,12 +131,25 @@ public class AnuncioServiceImpl implements AnuncioService {
             throw new BusinessException("No tienes permiso para publicar este anuncio");
         }
 
-        // Verificar que tiene metadata (paso 2 completado)
-        if (anuncio.getMetadata() == null) {
-            throw new BusinessException("Debes completar los datos específicos del servicio antes de publicar");
+        // Lógica según el estado actual
+        switch (anuncio.getStatus()) {
+            case BORRADOR:
+                if (anuncio.getMetadata() == null) {
+                    throw new BusinessException("Debes completar los datos específicos del servicio antes de publicar");
+                }
+                anuncio.publicar();
+                break;
+            case DESPUBLICADO:
+                anuncio.republicar();
+                break;
+            case PUBLICADO:
+                throw new BusinessException("El anuncio ya está publicado");
+            case ELIMINADO:
+                throw new BusinessException("No se puede republicar un anuncio eliminado");
+            default:
+                throw new BusinessException("Estado no válido");
         }
 
-        anuncio.publicar();
         Anuncio saved = anuncioRepository.save(anuncio);
         return mapToResponse(saved, false);
     }
@@ -213,8 +227,15 @@ public class AnuncioServiceImpl implements AnuncioService {
         Anuncio anuncio = anuncioRepository.findByIdAndPropietarioId(anuncioId, userId)
                 .orElseThrow(() -> new ResourceNotFoundException("Anuncio no encontrado"));
 
-        if (!anuncio.isEditable()) {
-            throw new BusinessException("No se puede editar un anuncio publicado. Despublícalo primero.");
+        // Permitir editar desde cualquier estado excepto ELIMINADO
+        if (anuncio.getStatus() == AnuncioStatus.ELIMINADO) {
+            throw new BusinessException("No se puede editar un anuncio eliminado");
+        }
+
+        // Si está PUBLICADO, despublicarlo automáticamente
+        boolean eraPublicado = (anuncio.getStatus() == AnuncioStatus.PUBLICADO);
+        if (eraPublicado) {
+            anuncio.despublicar();
         }
 
         Category category = categoryRepository.findById(request.getCategoryId())
@@ -232,6 +253,10 @@ public class AnuncioServiceImpl implements AnuncioService {
         anuncio.setSubcategory(subcategory);
 
         Anuncio saved = anuncioRepository.save(anuncio);
+
+        // Log para debug
+        log.info("Anuncio {} editado. Era publicado: {}", anuncioId, eraPublicado);
+
         return mapToResponse(saved, false);
     }
 
@@ -275,6 +300,20 @@ public class AnuncioServiceImpl implements AnuncioService {
 
         anuncio.eliminar();
         anuncioRepository.save(anuncio);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public AnuncioDetailResponse getByIdForEdit(Long id, Long userId) {
+        Anuncio anuncio = anuncioRepository.findByIdAndPropietarioId(id, userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Anuncio no encontrado"));
+
+        // Verificar que no esté eliminado
+        if (anuncio.getStatus() == AnuncioStatus.ELIMINADO) {
+            throw new BusinessException("No se puede editar un anuncio eliminado");
+        }
+
+        return mapToDetailResponse(anuncio, false);
     }
 
     // Mappers
@@ -352,4 +391,6 @@ public class AnuncioServiceImpl implements AnuncioService {
         }
         return null;
     }
+
+
 }
