@@ -12,12 +12,18 @@ let misAnunciosCache = [];
 
 // ==================== INICIALIZACIÓN ====================
 document.addEventListener('DOMContentLoaded', () => {
+    console.log('DOM cargado, inicializando...');
+
     if (authToken) {
         validateToken();
     } else {
         showScreen('auth');
     }
-    cargarCategorias();
+
+    // Cargar categorías después de asegurar que el DOM está listo
+    setTimeout(() => {
+        cargarCategorias();
+    }, 100);
 });
 
 // ==================== NAVEGACIÓN ====================
@@ -42,6 +48,12 @@ function openH2Console() {
 
 function goDashboard() {
     showScreen('dashboard');
+}
+
+function goExplore() {
+    showScreen('explore');
+    loadPublicAnuncios();
+    cargarCategoriasFiltro();
 }
 
 function goExplore() {
@@ -292,47 +304,95 @@ async function deleteAccount() {
 
 // ==================== CATEGORÍAS Y SUBCATEGORÍAS ====================
 async function cargarCategorias() {
+    console.log('Cargando categorías...');
+
     try {
         const response = await fetch(`${API_URL}/categories`);
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
         categorias = await response.json();
+        console.log('Categorías cargadas:', categorias);
 
         const select = document.getElementById('anuncioCategoria');
+        if (!select) {
+            console.error('No se encontró el select de categorías');
+            return;
+        }
+
         select.innerHTML = '<option value="">Selecciona categoría</option>';
 
-        categorias.forEach(cat => {
-            const option = document.createElement('option');
-            option.value = cat.id;
-            option.textContent = cat.nombre;
-            select.appendChild(option);
-        });
+        if (Array.isArray(categorias) && categorias.length > 0) {
+            categorias.forEach(cat => {
+                const option = document.createElement('option');
+                option.value = cat.id;
+                option.textContent = cat.nombre;
+                select.appendChild(option);
+            });
+            console.log('Categorías añadidas al select');
+        } else {
+            console.warn('No hay categorías disponibles o el formato es incorrecto');
+        }
     } catch (error) {
         console.error('Error cargando categorías:', error);
+        const select = document.getElementById('anuncioCategoria');
+        if (select) {
+            select.innerHTML = '<option value="">Error al cargar categorías</option>';
+        }
     }
 }
 
 function cargarSubcategorias() {
+    console.log('Cargando subcategorías...');
+
     const categoriaId = document.getElementById('anuncioCategoria').value;
     const select = document.getElementById('anuncioSubcategoria');
 
+    if (!select) {
+        console.error('No se encontró el select de subcategorías');
+        return;
+    }
+
     select.innerHTML = '<option value="">Selecciona subcategoría</option>';
 
-    if (!categoriaId) return;
+    if (!categoriaId) {
+        console.log('No hay categoría seleccionada');
+        return;
+    }
+
+    console.log('Buscando categoría con ID:', categoriaId);
+    console.log('Categorías disponibles:', categorias);
 
     const categoria = categorias.find(c => c.id == categoriaId);
-    if (categoria && categoria.subcategories) {
-        subcategorias = categoria.subcategories;
-        subcategorias.forEach(sub => {
-            const option = document.createElement('option');
-            option.value = sub.id;
-            option.textContent = sub.nombre;
-            option.dataset.codigo = sub.codigo;
-            select.appendChild(option);
-        });
+
+    if (categoria) {
+        console.log('Categoría encontrada:', categoria);
+
+        if (categoria.subcategories && Array.isArray(categoria.subcategories)) {
+            subcategorias = categoria.subcategories;
+            console.log('Subcategorias:', subcategorias);
+
+            subcategorias.forEach(sub => {
+                const option = document.createElement('option');
+                option.value = sub.id;
+                option.textContent = sub.nombre;
+                option.dataset.codigo = sub.codigo;
+                select.appendChild(option);
+            });
+        } else {
+            console.warn('La categoría no tiene subcategorías');
+        }
+    } else {
+        console.error('No se encontró la categoría con ID:', categoriaId);
     }
 }
 
+
 function mostrarInfoSubcategoria() {
-    // Aquí podrías mostrar información de qué campos se pedirán en el paso 2
+    const subcategoriaId = document.getElementById('anuncioSubcategoria').value;
+    console.log('Subcategoría seleccionada:', subcategoriaId);
 }
 
 // ==================== CREAR ANUNCIO (2 PASOS) ====================

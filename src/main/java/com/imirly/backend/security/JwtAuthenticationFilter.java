@@ -28,41 +28,29 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
-                                    FilterChain filterChain)
-            throws ServletException, IOException {
-
+                                    FilterChain filterChain) throws ServletException, IOException {
         try {
             String jwt = getJwtFromRequest(request);
 
             if (StringUtils.hasText(jwt) && tokenProvider.validateToken(jwt)) {
+                // Obtener el userId del token
+                Long userId = tokenProvider.getUserIdFromToken(jwt);
 
-                // 🔑 AHORA EL TOKEN CONTIENE EL EMAIL
-                String email = tokenProvider.getEmailFromToken(jwt);
-
-                UserDetails userDetails =
-                        userDetailsService.loadUserByUsername(email);
+                // Cargar el usuario por ID
+                UserDetails userDetails = userDetailsService.loadUserByUsername(userId.toString());
 
                 UsernamePasswordAuthenticationToken authentication =
-                        new UsernamePasswordAuthenticationToken(
-                                userDetails,
-                                null,
-                                userDetails.getAuthorities()
-                        );
+                        new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
+                authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
 
-                authentication.setDetails(
-                        new WebAuthenticationDetailsSource().buildDetails(request)
-                );
-
-                SecurityContextHolder.getContext()
-                        .setAuthentication(authentication);
+                SecurityContextHolder.getContext().setAuthentication(authentication);
             }
         } catch (Exception ex) {
-            log.error("No se pudo establecer la autenticación JWT", ex);
+            log.error("No se pudo establecer la autenticación", ex);
         }
 
         filterChain.doFilter(request, response);
     }
-
 
     private String getJwtFromRequest(HttpServletRequest request) {
         String bearerToken = request.getHeader("Authorization");

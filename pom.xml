@@ -22,6 +22,9 @@
 
 	<properties>
 		<java.version>17</java.version>
+		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+		<project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+		<!-- VERSION JJWT - FALTABA ESTO -->
 		<jjwt.version>0.12.5</jjwt.version>
 	</properties>
 
@@ -181,6 +184,14 @@
 				</configuration>
 			</plugin>
 		</plugins>
+
+		<!-- Configuración de recursos para evitar problemas de codificación -->
+		<resources>
+			<resource>
+				<directory>src/main/resources</directory>
+				<filtering>true</filtering>
+			</resource>
+		</resources>
 	</build>
 
 	<!-- Perfiles para diferentes entornos -->

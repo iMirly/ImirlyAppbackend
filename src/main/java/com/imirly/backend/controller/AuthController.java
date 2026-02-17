@@ -11,6 +11,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -27,60 +28,68 @@ public class AuthController {
     private final UserService userService;
 
     @PostMapping("/login")
-    public ResponseEntity<JwtResponse> login(@Valid @RequestBody LoginRequest request) {
+    public ResponseEntity<?> login(@Valid @RequestBody LoginRequest request) {
+        try {
+            // Buscar usuario por email para obtener el ID
+            User user = userService.findByEmail(request.getEmail());
 
-        Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(
-                        request.getEmail(),
-                        request.getPassword()
-                )
-        );
+            // Autenticar usando el ID como username (String) y la contraseña
+            Authentication authentication = authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(
+                            user.getId().toString(),
+                            request.getPassword()
+                    )
+            );
 
-        SecurityContextHolder.getContext().setAuthentication(authentication);
+            SecurityContextHolder.getContext().setAuthentication(authentication);
+            String jwt = jwtTokenProvider.generateToken(authentication);
 
-        User user = userService.findByEmail(request.getEmail());
-        String jwt = jwtTokenProvider.generateToken(authentication);
+            UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
 
-        UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
+            return ResponseEntity.ok(JwtResponse.builder()
+                    .token(jwt)
+                    .id(userDetails.getId())
+                    .nombre(userDetails.getNombre())
+                    .email(userDetails.getEmail())
+                    .role(userDetails.getAuthorities().iterator().next().getAuthority().replace("ROLE_", ""))
+                    .datosCompletos(user.tieneDatosCompletos())
+                    .build());
 
-        return ResponseEntity.ok(
-                JwtResponse.builder()
-                        .token(jwt)
-                        .id(user.getId())
-                        .nombre(user.getNombre())
-                        .email(user.getEmail())
-                        .role(user.getRole().name())
-                        .datosCompletos(user.tieneDatosCompletos())
-                        .build()
-        );
+        } catch (BadCredentialsException e) {
+            return ResponseEntity.status(401).body("Credenciales incorrectas");
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("Error en login: " + e.getMessage());
+        }
     }
 
-
     @PostMapping("/register")
-    public ResponseEntity<JwtResponse> register(@Valid @RequestBody RegisterRequest request) {
+    public ResponseEntity<?> register(@Valid @RequestBody RegisterRequest request) {
+        try {
+            // Crear usuario
+            User user = userService.register(request);
 
-        User user = userService.register(request);
+            // Auto-login después de registro
+            Authentication authentication = authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(
+                            user.getId().toString(),
+                            request.getPassword()
+                    )
+            );
 
-        //  Auto-login tras registro (con email)
-        Authentication authentication = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(
-                        user.getEmail(),
-                        request.getPassword()
-                )
-        );
+            SecurityContextHolder.getContext().setAuthentication(authentication);
+            String jwt = jwtTokenProvider.generateToken(authentication);
 
-        SecurityContextHolder.getContext().setAuthentication(authentication);
-        String jwt = jwtTokenProvider.generateToken(authentication);
+            return ResponseEntity.ok(JwtResponse.builder()
+                    .token(jwt)
+                    .id(user.getId())
+                    .nombre(user.getNombre())
+                    .email(user.getEmail())
+                    .role("USER")
+                    .datosCompletos(false)
+                    .build());
 
-        return ResponseEntity.ok(
-                JwtResponse.builder()
-                        .token(jwt)
-                        .id(user.getId())
-                        .nombre(user.getNombre())
-                        .email(user.getEmail())
-                        .role("USER")
-                        .datosCompletos(user.tieneDatosCompletos())
-                        .build()
-        );
+        } catch (Exception e) {
+            return ResponseEntity.status(400).body("Error en registro: " + e.getMessage());
+        }
     }
 }

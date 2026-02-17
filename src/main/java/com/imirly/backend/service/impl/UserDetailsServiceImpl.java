@@ -18,14 +18,18 @@ public class UserDetailsServiceImpl implements UserDetailsService {
 
     @Override
     @Transactional(readOnly = true)
-    public UserDetails loadUserByUsername(String email)
-            throws UsernameNotFoundException {
-
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() ->
-                        new UsernameNotFoundException("Usuario no encontrado: " + email)
-                );
-
-        return UserDetailsImpl.build(user);
+    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
+        // El username que llega es el ID del usuario (como String)
+        try {
+            Long userId = Long.parseLong(username);
+            User user = userRepository.findById(userId)
+                    .orElseThrow(() -> new UsernameNotFoundException("Usuario no encontrado con ID: " + userId));
+            return UserDetailsImpl.build(user);
+        } catch (NumberFormatException e) {
+            // Si no es un número, podría ser un email (para compatibilidad)
+            User user = userRepository.findByEmail(username)
+                    .orElseThrow(() -> new UsernameNotFoundException("Usuario no encontrado: " + username));
+            return UserDetailsImpl.build(user);
+        }
     }
 }

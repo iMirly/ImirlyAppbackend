@@ -2,7 +2,6 @@ package com.imirly.backend.security;
 
 import com.imirly.backend.config.JwtConfig;
 import io.jsonwebtoken.*;
-import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -20,8 +19,26 @@ public class JwtTokenProvider {
     private final JwtConfig jwtConfig;
 
     private SecretKey getSigningKey() {
-        byte[] keyBytes = Decoders.BASE64.decode(jwtConfig.getSecret());
-        return Keys.hmacShaKeyFor(keyBytes);
+        String secret = jwtConfig.getSecret();
+
+        log.info("=== JWT CONFIG ===");
+        log.info("Secret es null: {}", secret == null);
+        log.info("Secret está vacío: {}", secret != null && secret.isEmpty());
+        log.info("Secret length: {}", secret != null ? secret.length() : 0);
+
+        if (secret == null || secret.isEmpty()) {
+            throw new IllegalStateException("JWT secret no configurado. Verifica application.properties");
+        }
+
+        // USAR STRING DIRECTO (no Base64) - asegurar que tenga al menos 64 caracteres
+        // HS512 necesita 512 bits = 64 bytes
+        if (secret.length() < 64) {
+            log.warn("Secret muy corto ({} chars), extendiendo a 64 chars", secret.length());
+            secret = String.format("%-64s", secret).replace(' ', 'X'); // Rellenar con 'X'
+        }
+
+        log.info("Secret final length: {} chars", secret.length());
+        return Keys.hmacShaKeyFor(secret.getBytes());
     }
 
     public String generateToken(Authentication authentication) {
@@ -31,34 +48,15 @@ public class JwtTokenProvider {
         Date expiryDate = new Date(now.getTime() + jwtConfig.getExpirationMs());
 
         return Jwts.builder()
-                // 🔴 ANTES: ID
-                // .subject(userPrincipal.getId().toString())
-
-                // ✅ AHORA: EMAIL
-                .subject(userPrincipal.getEmail())
-
-                .claim("role", userPrincipal.getAuthorities()
-                        .iterator()
-                        .next()
-                        .getAuthority())
+                .subject(userPrincipal.getId().toString())
+                .claim("email", userPrincipal.getEmail())
+                .claim("role", userPrincipal.getAuthorities().iterator().next().getAuthority())
                 .issuedAt(now)
                 .expiration(expiryDate)
                 .signWith(getSigningKey(), Jwts.SIG.HS512)
                 .compact();
     }
 
-
-    public String getEmailFromToken(String token) {
-        Claims claims = Jwts.parser()
-                .verifyWith(getSigningKey())
-                .build()
-                .parseSignedClaims(token)
-                .getPayload();
-
-        return claims.getSubject();
-    }
-
-    /*
     public Long getUserIdFromToken(String token) {
         Claims claims = Jwts.parser()
                 .verifyWith(getSigningKey())
@@ -68,8 +66,6 @@ public class JwtTokenProvider {
 
         return Long.parseLong(claims.getSubject());
     }
-    */
-
 
     public boolean validateToken(String authToken) {
         try {

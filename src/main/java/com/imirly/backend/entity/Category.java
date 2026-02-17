@@ -19,13 +19,19 @@ public class Category {
     private Long id;
 
     @Column(nullable = false, unique = true, length = 50)
-    private String codigo; // hogar, clases, deporte, etc.
+    private String codigo;
 
     @Column(nullable = false, length = 100)
     private String nombre;
 
-    @Column(length = 100)
+    @Column(length = 255)  // URL de imagen
     private String imagen;
+
+    @Column(length = 10)   // Emoji o icono corto
+    private String icono;
+
+    @Column
+    private Integer orden;
 
     @OneToMany(mappedBy = "category", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderBy("nombre")

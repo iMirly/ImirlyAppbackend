@@ -21,7 +21,7 @@ public class CategoryController {
         return ResponseEntity.ok(categoryService.getAllCategories());
     }
 
-    // Endpoint para inicializar categorías (solo admin/dev)
+    // Endpoint para inicializar categorías (solo ejecutar una vez)
     @PostMapping("/seed")
     public ResponseEntity<?> seedCategories() {
         categoryService.seedCategories();
