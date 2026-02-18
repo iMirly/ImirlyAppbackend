@@ -7,8 +7,9 @@ let currentUser = null;
 let authToken = localStorage.getItem('token');
 let categorias = [];
 let subcategorias = [];
-let anuncioTemporal = null; // Guarda el anuncio creado en step 1
+let anuncioTemporal = null;
 let misAnunciosCache = [];
+let currentFormConfig = null; // Configuración actual de campos dinámicos
 
 // ==================== INICIALIZACIÓN ====================
 document.addEventListener('DOMContentLoaded', () => {
@@ -20,7 +21,6 @@ document.addEventListener('DOMContentLoaded', () => {
         showScreen('auth');
     }
 
-    // Cargar categorías después de asegurar que el DOM está listo
     setTimeout(() => {
         cargarCategorias();
     }, 100);
@@ -56,12 +56,6 @@ function goExplore() {
     cargarCategoriasFiltro();
 }
 
-function goExplore() {
-    showScreen('explore');
-    loadPublicAnuncios();
-    cargarCategoriasFiltro();
-}
-
 // ==================== AUTH ====================
 async function register() {
     clearErrors();
@@ -71,7 +65,6 @@ async function register() {
     const password = document.getElementById('regPassword').value;
     const confirmPassword = document.getElementById('regConfirmPassword').value;
 
-    // Validaciones
     if (!nombre) return showError('regNombre', 'El nombre es obligatorio');
     if (!email) return showError('regEmail', 'El email es obligatorio');
     if (!password) return showError('regPassword', 'La contraseña es obligatoria');
@@ -127,7 +120,6 @@ async function login() {
         showError('loginGeneral', error.message);
     }
 }
-
 
 function loginSuccess(data) {
     authToken = data.token;
@@ -185,7 +177,6 @@ async function loadUserProfile() {
             completenessBadge.className = 'badge incomplete';
         }
 
-        // Rellenar formulario de edición
         document.getElementById('editTelefono').value = user.telefono || '';
         document.getElementById('editFechaNacimiento').value = user.fechaNacimiento || '';
         document.getElementById('editCalle').value = user.direccionCalle || '';
@@ -218,7 +209,7 @@ function hideChangePasswordForm() {
 
 async function updateProfile() {
     const data = {
-        nombre: currentUser.nombre, // Mantener el nombre actual
+        nombre: currentUser.nombre,
         telefono: document.getElementById('editTelefono').value.trim(),
         fechaNacimiento: document.getElementById('editFechaNacimiento').value,
         direccionCalle: document.getElementById('editCalle').value.trim(),
@@ -331,16 +322,9 @@ async function cargarCategorias() {
                 option.textContent = cat.nombre;
                 select.appendChild(option);
             });
-            console.log('Categorías añadidas al select');
-        } else {
-            console.warn('No hay categorías disponibles o el formato es incorrecto');
         }
     } catch (error) {
         console.error('Error cargando categorías:', error);
-        const select = document.getElementById('anuncioCategoria');
-        if (select) {
-            select.innerHTML = '<option value="">Error al cargar categorías</option>';
-        }
     }
 }
 
@@ -358,41 +342,24 @@ function cargarSubcategorias() {
     select.innerHTML = '<option value="">Selecciona subcategoría</option>';
 
     if (!categoriaId) {
-        console.log('No hay categoría seleccionada');
+        subcategorias = [];
         return;
     }
 
-    console.log('Buscando categoría con ID:', categoriaId);
-    console.log('Categorías disponibles:', categorias);
-
     const categoria = categorias.find(c => c.id == categoriaId);
 
-    if (categoria) {
-        console.log('Categoría encontrada:', categoria);
+    if (categoria && categoria.subcategories) {
+        subcategorias = categoria.subcategories;
 
-        if (categoria.subcategories && Array.isArray(categoria.subcategories)) {
-            subcategorias = categoria.subcategories;
-            console.log('Subcategorias:', subcategorias);
-
-            subcategorias.forEach(sub => {
-                const option = document.createElement('option');
-                option.value = sub.id;
-                option.textContent = sub.nombre;
-                option.dataset.codigo = sub.codigo;
-                select.appendChild(option);
-            });
-        } else {
-            console.warn('La categoría no tiene subcategorías');
-        }
-    } else {
-        console.error('No se encontró la categoría con ID:', categoriaId);
+        subcategorias.forEach(sub => {
+            const option = document.createElement('option');
+            option.value = sub.id;
+            option.textContent = sub.nombre;
+            option.dataset.codigo = sub.codigo;
+            option.dataset.formConfig = sub.formConfigJson || '';
+            select.appendChild(option);
+        });
     }
-}
-
-
-function mostrarInfoSubcategoria() {
-    const subcategoriaId = document.getElementById('anuncioSubcategoria').value;
-    console.log('Subcategoría seleccionada:', subcategoriaId);
 }
 
 // ==================== CREAR ANUNCIO (2 PASOS) ====================
@@ -416,7 +383,6 @@ async function crearAnuncioStep1() {
         subcategoryId: parseInt(document.getElementById('anuncioSubcategoria').value)
     };
 
-    // Validaciones
     if (!data.titulo) return showError('anuncioGeneral', 'El título es obligatorio');
     if (!data.precio || data.precio <= 0) return showError('anuncioGeneral', 'El precio debe ser mayor a 0');
     if (!data.ubicacion) return showError('anuncioGeneral', 'La ubicación es obligatoria');
@@ -450,90 +416,183 @@ async function crearAnuncioStep1() {
     }
 }
 
-function generarCamposStep2(subcategoriaId) {
+/**
+ * Genera los campos dinámicos del Paso 2 basándose en el formConfigJson de la subcategoría
+ */
+function generarCamposStep2(subcategoriaId, metadataExistente = null) {
+    console.log('Generando campos para subcategoría:', subcategoriaId);
+    console.log('Metadata existente:', metadataExistente);
+
     const subcategoria = subcategorias.find(s => s.id == subcategoriaId);
     const container = document.getElementById('camposEspecificos');
     container.innerHTML = '';
 
-    // Campos por defecto para todas las subcategorías
-    const camposDefault = `
-        <div class="campo-dinamico">
-            <label>Años de experiencia</label>
-            <select id="metaExperiencia">
-                <option value="0-1">0-1 años</option>
-                <option value="1-3">1-3 años</option>
-                <option value="3-5">3-5 años</option>
-                <option value="5-10">5-10 años</option>
-                <option value="+10">Más de 10 años</option>
-            </select>
-        </div>
+    if (!subcategoria) {
+        console.error('No se encontró la subcategoría:', subcategoriaId);
+        return;
+    }
 
-        <div class="campo-dinamico">
-            <label>Disponibilidad</label>
-            <div class="checkbox-group">
-                <label><input type="checkbox" value="Lun" checked> Lun</label>
-                <label><input type="checkbox" value="Mar" checked> Mar</label>
-                <label><input type="checkbox" value="Mie" checked> Mié</label>
-                <label><input type="checkbox" value="Jue" checked> Jue</label>
-                <label><input type="checkbox" value="Vie" checked> Vie</label>
-                <label><input type="checkbox" value="Sab"> Sáb</label>
-                <label><input type="checkbox" value="Dom"> Dom</label>
-            </div>
-        </div>
+    console.log('Subcategoría encontrada:', subcategoria);
+    console.log('formConfigJson:', subcategoria.formConfigJson);
 
-        <div class="campo-dinamico">
-            <label>
-                <input type="checkbox" id="metaDomicilio">
-                Ofrezco servicio a domicilio
-            </label>
-        </div>
-    `;
-
-    container.innerHTML = camposDefault;
-
-    // Campos específicos según la subcategoría (ejemplos)
-    if (subcategoria) {
-        const codigo = subcategoria.codigo;
-
-        if (['fontaneria', 'electricista', 'cerrajero'].includes(codigo)) {
-            container.innerHTML += `
-                <div class="campo-dinamico">
-                    <label>
-                        <input type="checkbox" id="metaUrgencias">
-                        Atiendo urgencias 24h
-                    </label>
-                </div>
-            `;
-        }
-
-        if (['colegio', 'idiomas', 'musica', 'dibujo', 'baile', 'eso'].includes(codigo)) {
-            container.innerHTML += `
-                <div class="campo-dinamico">
-                    <label>
-                        <input type="checkbox" id="metaOnline">
-                        Ofrezco clases online
-                    </label>
-                </div>
-                <div class="campo-dinamico">
-                    <label>Titulación</label>
-                    <input type="text" id="metaTitulacion" placeholder="Ej: Licenciado en...">
-                </div>
-            `;
-        }
-
-        if (['paseador', 'cuidador', 'adiestrador'].includes(codigo)) {
-            container.innerHTML += `
-                <div class="campo-dinamico">
-                    <label>Tipos de mascotas</label>
-                    <div class="checkbox-group">
-                        <label><input type="checkbox" value="perros"> Perros</label>
-                        <label><input type="checkbox" value="gatos"> Gatos</label>
-                        <label><input type="checkbox" value="otros"> Otros</label>
-                    </div>
-                </div>
-            `;
+    // Parsear la configuración del formulario
+    let camposConfig = [];
+    if (subcategoria.formConfigJson) {
+        try {
+            camposConfig = JSON.parse(subcategoria.formConfigJson);
+            currentFormConfig = camposConfig;
+            console.log('Campos configurados:', camposConfig);
+        } catch (e) {
+            console.error('Error parseando formConfigJson:', e);
         }
     }
+
+    // Si no hay configuración, usar campos por defecto
+    if (camposConfig.length === 0) {
+        console.warn('No hay configuración de campos, usando defaults');
+        camposConfig = getCamposPorDefecto();
+    }
+
+    // Generar HTML para cada campo
+    camposConfig.forEach(campo => {
+        const div = document.createElement('div');
+        div.className = 'campo-dinamico';
+
+        const valorActual = metadataExistente ? metadataExistente[campo.id] : null;
+        console.log(`Campo ${campo.id}:`, valorActual);
+
+        div.innerHTML = generarCampoHTML(campo, valorActual);
+        container.appendChild(div);
+    });
+
+    // Añadir campos comunes si no están en la configuración
+    if (!camposConfig.find(c => c.id === 'disponibilidad')) {
+        const divDisp = document.createElement('div');
+        divDisp.className = 'campo-dinamico';
+        divDisp.innerHTML = generarCampoDisponibilidad(metadataExistente?.disponibilidad);
+        container.appendChild(divDisp);
+    }
+}
+
+/**
+ * Genera el HTML para un campo específico según su tipo
+ */
+function generarCampoHTML(campo, valorActual) {
+    const valor = valorActual !== undefined && valorActual !== null ? valorActual : '';
+
+    switch (campo.tipo) {
+        case 'number':
+            return `
+                <label for="meta_${campo.id}">${campo.label}</label>
+                <input type="number" id="meta_${campo.id}" name="${campo.id}" 
+                       step="0.01" min="0" value="${valor}" 
+                       placeholder="0.00">
+            `;
+
+        case 'text':
+            return `
+                <label for="meta_${campo.id}">${campo.label}</label>
+                <input type="text" id="meta_${campo.id}" name="${campo.id}" 
+                       value="${valor}" placeholder="${campo.placeholder || ''}">
+            `;
+
+        case 'select':
+            const opcionesSelect = campo.opciones.map(op =>
+                `<option value="${op}" ${valor === op ? 'selected' : ''}>${op}</option>`
+            ).join('');
+            return `
+                <label for="meta_${campo.id}">${campo.label}</label>
+                <select id="meta_${campo.id}" name="${campo.id}">
+                    <option value="">Selecciona...</option>
+                    ${opcionesSelect}
+                </select>
+            `;
+
+        case 'checkbox-group':
+            const valoresArray = Array.isArray(valor) ? valor : (valor ? [valor] : []);
+            const opcionesCheckbox = campo.opciones.map(op => {
+                const checked = valoresArray.includes(op) ? 'checked' : '';
+                return `
+                    <label class="checkbox-option">
+                        <input type="checkbox" name="${campo.id}" value="${op}" ${checked}>
+                        <span>${op}</span>
+                    </label>
+                `;
+            }).join('');
+            return `
+                <label>${campo.label}</label>
+                <div class="checkbox-group" id="meta_${campo.id}">
+                    ${opcionesCheckbox}
+                </div>
+            `;
+
+        case 'boolean':
+            const checkedBool = valor === true || valor === 'true' ? 'checked' : '';
+            return `
+                <label class="toggle-label">
+                    <input type="checkbox" id="meta_${campo.id}" name="${campo.id}" ${checkedBool}>
+                    <span class="toggle-slider"></span>
+                    <span class="toggle-text">${campo.label}</span>
+                </label>
+            `;
+
+        case 'textarea':
+            return `
+                <label for="meta_${campo.id}">${campo.label}</label>
+                <textarea id="meta_${campo.id}" name="${campo.id}" rows="3"
+                          placeholder="${campo.placeholder || ''}">${valor}</textarea>
+            `;
+
+        default:
+            return `
+                <label for="meta_${campo.id}">${campo.label}</label>
+                <input type="text" id="meta_${campo.id}" name="${campo.id}" value="${valor}">
+            `;
+    }
+}
+
+/**
+ * Genera el campo de disponibilidad (común a todas las subcategorías)
+ */
+function generarCampoDisponibilidad(valorActual) {
+    const dias = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+    const valoresArray = Array.isArray(valorActual) ? valorActual : ['Lun', 'Mar', 'Mié', 'Jue', 'Vie'];
+
+    const opciones = dias.map(dia => {
+        const checked = valoresArray.includes(dia) ? 'checked' : '';
+        return `
+            <label class="checkbox-option day-option">
+                <input type="checkbox" name="disponibilidad" value="${dia}" ${checked}>
+                <span>${dia}</span>
+            </label>
+        `;
+    }).join('');
+
+    return `
+        <label>Disponibilidad</label>
+        <div class="checkbox-group days-group" id="meta_disponibilidad">
+            ${opciones}
+        </div>
+    `;
+}
+
+/**
+ * Campos por defecto si no hay configuración específica
+ */
+function getCamposPorDefecto() {
+    return [
+        {
+            id: 'anos_experiencia',
+            label: 'Años de experiencia',
+            tipo: 'select',
+            opciones: ['Sin experiencia', '1-2', '3-5', '6-10', '+10']
+        },
+        {
+            id: 'servicio_domicilio',
+            label: 'Ofrezco servicio a domicilio',
+            tipo: 'boolean'
+        }
+    ];
 }
 
 function volverStep1() {
@@ -542,25 +601,47 @@ function volverStep1() {
     document.getElementById('anuncioStepIndicator').textContent = 'Paso 1 de 2: Información general';
 }
 
-async function completarAnuncioStep2() {
-    // Recoger datos de los campos dinámicos
-    const metadata = {
-        anosExperiencia: document.getElementById('metaExperiencia').value,
-        disponibilidad: Array.from(document.querySelectorAll('.checkbox-group input[type="checkbox"]:checked'))
-            .map(cb => cb.value),
-        servicioDomicilio: document.getElementById('metaDomicilio').checked
-    };
+/**
+ * Recoge los valores de los campos dinámicos del Paso 2
+ */
+function recogerMetadataStep2() {
+    const metadata = {};
 
-    // Campos opcionales según existan
-    if (document.getElementById('metaUrgencias')) {
-        metadata.urgencias = document.getElementById('metaUrgencias').checked;
-    }
-    if (document.getElementById('metaOnline')) {
-        metadata.clasesOnline = document.getElementById('metaOnline').checked;
-    }
-    if (document.getElementById('metaTitulacion')) {
-        metadata.titulacion = document.getElementById('metaTitulacion').value;
-    }
+    if (!currentFormConfig) return metadata;
+
+    currentFormConfig.forEach(campo => {
+        switch (campo.tipo) {
+            case 'number':
+                const valNum = document.getElementById(`meta_${campo.id}`)?.value;
+                metadata[campo.id] = valNum ? parseFloat(valNum) : null;
+                break;
+
+            case 'select':
+            case 'text':
+            case 'textarea':
+                metadata[campo.id] = document.getElementById(`meta_${campo.id}`)?.value || null;
+                break;
+
+            case 'checkbox-group':
+                const checkboxes = document.querySelectorAll(`#meta_${campo.id} input[type="checkbox"]:checked`);
+                metadata[campo.id] = Array.from(checkboxes).map(cb => cb.value);
+                break;
+
+            case 'boolean':
+                metadata[campo.id] = document.getElementById(`meta_${campo.id}`)?.checked || false;
+                break;
+        }
+    });
+
+    // Disponibilidad siempre está presente
+    const dispChecks = document.querySelectorAll('#meta_disponibilidad input[type="checkbox"]:checked');
+    metadata.disponibilidad = Array.from(dispChecks).map(cb => cb.value);
+
+    return metadata;
+}
+
+async function completarAnuncioStep2() {
+    const metadata = recogerMetadataStep2();
 
     try {
         // Guardar metadatos
@@ -585,8 +666,6 @@ async function completarAnuncioStep2() {
         });
 
         alert('✅ Anuncio publicado correctamente');
-
-        // Resetear formulario
         resetFormularioAnuncio();
         loadMisAnuncios();
 
@@ -608,9 +687,8 @@ function resetFormularioAnuncio() {
     document.getElementById('anuncioCategoria').value = '';
     document.getElementById('anuncioSubcategoria').innerHTML = '<option value="">Selecciona subcategoría</option>';
 
-    // IMPORTANTE: Resetear botones también
     resetBotonesFormulario();
-
+    currentFormConfig = null;
     anuncioTemporal = null;
 }
 
@@ -713,8 +791,8 @@ async function editarAnuncio(id) {
     console.log('Editando anuncio:', id);
 
     try {
-        // 1. Obtener datos del anuncio
-        const response = await fetch(`${API_URL}/anuncios/${id}/edit`, {
+        // Obtener datos completos del anuncio
+        const response = await fetch(`${API_URL}/anuncios/${id}`, {
             headers: { 'Authorization': `Bearer ${authToken}` }
         });
 
@@ -723,28 +801,44 @@ async function editarAnuncio(id) {
         }
 
         const anuncio = await response.json();
-        console.log('Datos del anuncio para editar:', anuncio);
+        console.log('Datos COMPLETOS del anuncio:', JSON.stringify(anuncio, null, 2));
 
-        // 2. Cargar datos en el formulario de Paso 1
-        cargarDatosEnFormulario(anuncio);
-
-        // 3. Guardar el ID del anuncio que se está editando
+        // Guardar el ID del anuncio que se está editando
         anuncioTemporal = {
             id: anuncio.id,
             editando: true,
-            statusAnterior: anuncio.status
+            statusAnterior: anuncio.status,
+            metadata: anuncio.metadata // Guardar metadata para usarla luego
         };
 
-        // 4. Mostrar el formulario de edición (Paso 1)
+        // PRIMERO cargar categorías si no están cargadas
+        if (categorias.length === 0) {
+            await cargarCategorias();
+        }
+
+        // Luego cargar datos en el formulario
+        await cargarDatosEnFormulario(anuncio);
+
+        // Mostrar el formulario de edición (Paso 1)
         document.getElementById('anuncioStep1').classList.remove('hidden');
         document.getElementById('anuncioStep2').classList.add('hidden');
         document.getElementById('anuncioStepIndicator').textContent = 'Editando anuncio - Paso 1 de 2';
 
-        // 5. Cambiar el botón "Continuar" por "Guardar cambios"
-        const btnContinuar = document.querySelector('#anuncioStep1 button[onclick="crearAnuncioStep1()"]');
+        // Cambiar el botón "Continuar" por "Guardar cambios"
+        const btnContinuar = document.querySelector('#anuncioStep1 button.primary');
         if (btnContinuar) {
             btnContinuar.textContent = 'Guardar cambios →';
-            btnContinuar.setAttribute('onclick', 'guardarEdicionStep1()');
+            btnContinuar.onclick = guardarEdicionStep1;
+        }
+
+        // Añadir botón "Cancelar edición" si no existe
+        if (!document.getElementById('btnCancelarEdicion')) {
+            const btnCancelar = document.createElement('button');
+            btnCancelar.id = 'btnCancelarEdicion';
+            btnCancelar.className = 'secondary';
+            btnCancelar.textContent = '← Cancelar edición';
+            btnCancelar.onclick = cancelarEdicion;
+            btnContinuar.parentNode.insertBefore(btnCancelar, btnContinuar);
         }
 
         // Scroll al formulario
@@ -753,6 +847,17 @@ async function editarAnuncio(id) {
     } catch (error) {
         console.error('Error:', error);
         alert('Error al cargar el anuncio: ' + error.message);
+    }
+}
+
+function cancelarEdicion() {
+    if (confirm('¿Descartar los cambios y salir de la edición?')) {
+        resetFormularioAnuncio();
+        resetBotonesFormulario();
+
+        // Eliminar botón cancelar si existe
+        const btnCancelar = document.getElementById('btnCancelarEdicion');
+        if (btnCancelar) btnCancelar.remove();
     }
 }
 
@@ -797,7 +902,11 @@ async function guardarEdicionStep1() {
         console.log('Anuncio actualizado:', anuncioActualizado);
 
         // Actualizar anuncioTemporal
-        anuncioTemporal = { ...anuncioTemporal, ...anuncioActualizado };
+        anuncioTemporal = {
+            ...anuncioTemporal,
+            ...anuncioActualizado,
+            subcategoryId: data.subcategoryId // Guardar para generar campos correctos
+        };
 
         // Mostrar paso 2 para editar metadata
         document.getElementById('anuncioStep1').classList.add('hidden');
@@ -805,38 +914,33 @@ async function guardarEdicionStep1() {
         document.getElementById('anuncioStepIndicator').textContent = 'Editando anuncio - Paso 2 de 2: Detalles específicos';
 
         // Generar campos dinámicos y cargar valores existentes
-        generarCamposStep2(data.subcategoryId);
-        await cargarMetadataExistente(anuncioTemporal.id);
+        generarCamposStep2(data.subcategoryId, anuncioTemporal.metadata);
 
-        // Cambiar botón del paso 2
-        const btnPublicar = document.querySelector('#anuncioStep2 button[onclick="completarAnuncioStep2()"]');
+        // Cambiar botón del paso 2 y añadir cancelar
+        const btnPublicar = document.querySelector('#anuncioStep2 button.primary');
         if (btnPublicar) {
             btnPublicar.textContent = 'Guardar y republicar';
-            btnPublicar.setAttribute('onclick', 'guardarEdicionStep2()');
+            btnPublicar.onclick = guardarEdicionStep2;
+        }
+
+        // Añadir botón cancelar en paso 2 si no existe
+        if (!document.getElementById('btnCancelarEdicionStep2')) {
+            const btnAtras = document.querySelector('#anuncioStep2 button.secondary');
+            const btnCancelar = document.createElement('button');
+            btnCancelar.id = 'btnCancelarEdicionStep2';
+            btnCancelar.className = 'danger';
+            btnCancelar.textContent = 'Cancelar';
+            btnCancelar.onclick = cancelarEdicion;
+            btnAtras.parentNode.insertBefore(btnCancelar, btnAtras.nextSibling);
         }
 
     } catch (error) {
         showError('anuncioGeneral', error.message);
     }
 }
-async function guardarEdicionStep2() {
-    // Recoger datos de los campos dinámicos
-    const metadata = {
-        anosExperiencia: document.getElementById('metaExperiencia').value,
-        disponibilidad: Array.from(document.querySelectorAll('.checkbox-group input[type="checkbox"]:checked'))
-            .map(cb => cb.value),
-        servicioDomicilio: document.getElementById('metaDomicilio').checked
-    };
 
-    if (document.getElementById('metaUrgencias')) {
-        metadata.urgencias = document.getElementById('metaUrgencias').checked;
-    }
-    if (document.getElementById('metaOnline')) {
-        metadata.clasesOnline = document.getElementById('metaOnline').checked;
-    }
-    if (document.getElementById('metaTitulacion')) {
-        metadata.titulacion = document.getElementById('metaTitulacion').value;
-    }
+async function guardarEdicionStep2() {
+    const metadata = recogerMetadataStep2();
 
     try {
         // Actualizar metadata
@@ -854,17 +958,17 @@ async function guardarEdicionStep2() {
 
         if (!response.ok) throw new Error('Error al guardar detalles');
 
-        // Republicar automáticamente
-        await fetch(`${API_URL}/anuncios/${anuncioTemporal.id}/publicar`, {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${authToken}` }
-        });
+        // Republicar automáticamente si estaba publicado
+        if (anuncioTemporal.statusAnterior === 'PUBLICADO') {
+            await fetch(`${API_URL}/anuncios/${anuncioTemporal.id}/publicar`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${authToken}` }
+            });
+        }
 
-        alert('✅ Anuncio actualizado y republicado correctamente');
-
-        // Resetear formulario y recargar lista
+        alert('✅ Anuncio actualizado correctamente');
         resetFormularioAnuncio();
-        resetBotonesFormulario(); // Restaurar textos originales de botones
+        resetBotonesFormulario();
         loadMisAnuncios();
 
     } catch (error) {
@@ -873,12 +977,16 @@ async function guardarEdicionStep2() {
 }
 
 function resetBotonesFormulario() {
-    // Restaurar botón del paso 1 (el que tiene onclick="guardarEdicionStep1()")
+    // Restaurar botón del paso 1
     const btnStep1 = document.querySelector('#anuncioStep1 button.primary');
     if (btnStep1) {
         btnStep1.textContent = 'Continuar →';
-        btnStep1.onclick = crearAnuncioStep1; // Mejor usar onclick en lugar de setAttribute
+        btnStep1.onclick = crearAnuncioStep1;
     }
+
+    // Eliminar botón cancelar del paso 1
+    const btnCancelar1 = document.getElementById('btnCancelarEdicion');
+    if (btnCancelar1) btnCancelar1.remove();
 
     // Restaurar botón del paso 2
     const btnStep2 = document.querySelector('#anuncioStep2 button.primary');
@@ -887,114 +995,54 @@ function resetBotonesFormulario() {
         btnStep2.onclick = completarAnuncioStep2;
     }
 
-    // Limpiar flag de edición
+    // Eliminar botón cancelar del paso 2
+    const btnCancelar2 = document.getElementById('btnCancelarEdicionStep2');
+    if (btnCancelar2) btnCancelar2.remove();
+
     if (anuncioTemporal) {
         anuncioTemporal.editando = false;
     }
 }
 
-async function cargarMetadataExistente(anuncioId) {
-    try {
-        const response = await fetch(`${API_URL}/anuncios/${anuncioId}`, {
-            headers: { 'Authorization': `Bearer ${authToken}` }
-        });
 
-        if (!response.ok) {
-            throw new Error('Error al cargar metadata');
-        }
-
-        const anuncio = await response.json();
-        console.log('Cargando metadata:', anuncio.metadata);
-
-        if (anuncio.metadata) {
-            const meta = anuncio.metadata;
-
-            // Cargar años de experiencia
-            const selectExperiencia = document.getElementById('metaExperiencia');
-            if (selectExperiencia && meta.anosExperiencia) {
-                selectExperiencia.value = meta.anosExperiencia;
-            }
-
-            // Cargar disponibilidad (checkboxes)
-            if (meta.disponibilidad && Array.isArray(meta.disponibilidad)) {
-                const checkboxes = document.querySelectorAll('.checkbox-group input[type="checkbox"]');
-                checkboxes.forEach(cb => {
-                    cb.checked = meta.disponibilidad.includes(cb.value);
-                });
-            }
-
-            // Cargar servicio a domicilio
-            const chkDomicilio = document.getElementById('metaDomicilio');
-            if (chkDomicilio && meta.servicioDomicilio) {
-                chkDomicilio.checked = meta.servicioDomicilio;
-            }
-
-            // Campos opcionales
-            const chkUrgencias = document.getElementById('metaUrgencias');
-            if (chkUrgencias && meta.urgencias) {
-                chkUrgencias.checked = meta.urgencias;
-            }
-
-            const chkOnline = document.getElementById('metaOnline');
-            if (chkOnline && meta.clasesOnline) {
-                chkOnline.checked = meta.clasesOnline;
-            }
-
-            const txtTitulacion = document.getElementById('metaTitulacion');
-            if (txtTitulacion && meta.titulacion) {
-                txtTitulacion.value = meta.titulacion;
-            }
-        }
-    } catch (error) {
-        console.error('Error cargando metadata:', error);
-    }
-}
-
-
-function cargarDatosEnFormulario(anuncio) {
+async function cargarDatosEnFormulario(anuncio) {
     console.log('Cargando anuncio en formulario:', anuncio);
 
-    // Verificar que tenemos los datos necesarios
     if (!anuncio) {
         console.error('No hay datos de anuncio para cargar');
         return;
     }
 
-    // Extraer IDs correctamente (pueden venir como objetos o IDs directos)
-    const categoryId = anuncio.category?.id || anuncio.categoryId || anuncio.category_id;
-    const subcategoryId = anuncio.subcategory?.id || anuncio.subcategoryId || anuncio.subcategory_id;
+    // Extraer IDs correctamente
+    const categoryId = anuncio.category?.id || anuncio.categoryId;
+    const subcategoryId = anuncio.subcategory?.id || anuncio.subcategoryId;
 
     console.log('Category ID:', categoryId, 'Subcategory ID:', subcategoryId);
 
-    // Función para cargar el resto de campos
-    const cargarCampos = () => {
-        document.getElementById('anuncioCategoria').value = categoryId || '';
-        cargarSubcategorias();
+    // Establecer categoría
+    const selectCategoria = document.getElementById('anuncioCategoria');
+    selectCategoria.value = categoryId || '';
 
-        // Esperar a que carguen las subcategorías
-        setTimeout(() => {
-            document.getElementById('anuncioSubcategoria').value = subcategoryId || '';
-            console.log('Subcategoría seleccionada:', document.getElementById('anuncioSubcategoria').value);
-        }, 200);
+    // Disparar evento change para cargar subcategorías
+    const event = new Event('change');
+    selectCategoria.dispatchEvent(event);
 
-        // Cargar resto de campos
-        document.getElementById('anuncioTitulo').value = anuncio.titulo || '';
-        document.getElementById('anuncioDescripcion').value = anuncio.descripcion || '';
-        document.getElementById('anuncioPrecio').value = anuncio.precio || '';
-        document.getElementById('anuncioTipoPrecio').value = anuncio.tipoPrecio || 'POR_HORA';
-        document.getElementById('anuncioUbicacion').value = anuncio.ubicacion || '';
-        document.getElementById('anuncioImagen').value = anuncio.imagenPrincipalUrl || '';
-    };
+    // Esperar a que carguen las subcategorías y luego seleccionar la correcta
+    await new Promise(resolve => setTimeout(resolve, 300));
 
-    // Cargar categorías primero si no están cargadas
-    if (categorias.length === 0) {
-        console.log('Categorías no cargadas, cargando...');
-        cargarCategorias().then(() => {
-            cargarCampos();
-        });
-    } else {
-        cargarCampos();
-    }
+    const selectSubcategoria = document.getElementById('anuncioSubcategoria');
+    selectSubcategoria.value = subcategoryId || '';
+
+    console.log('Subcategoría seleccionada:', selectSubcategoria.value);
+    console.log('Opciones disponibles:', Array.from(selectSubcategoria.options).map(o => o.value));
+
+    // Cargar resto de campos del paso 1
+    document.getElementById('anuncioTitulo').value = anuncio.titulo || '';
+    document.getElementById('anuncioDescripcion').value = anuncio.descripcion || '';
+    document.getElementById('anuncioPrecio').value = anuncio.precio || '';
+    document.getElementById('anuncioTipoPrecio').value = anuncio.tipoPrecio || 'POR_HORA';
+    document.getElementById('anuncioUbicacion').value = anuncio.ubicacion || '';
+    document.getElementById('anuncioImagen').value = anuncio.imagenPrincipalUrl || '';
 }
 
 // ==================== EXPLORAR ANUNCIOS PÚBLICOS ====================

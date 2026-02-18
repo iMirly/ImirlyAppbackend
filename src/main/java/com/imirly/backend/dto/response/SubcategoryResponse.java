@@ -10,4 +10,5 @@ public class SubcategoryResponse {
     private String codigo;
     private String nombre;
     private String imagen;
+    private String formConfigJson;
 }

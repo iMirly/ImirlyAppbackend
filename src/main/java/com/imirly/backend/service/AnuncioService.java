@@ -4,7 +4,6 @@ import com.imirly.backend.dto.request.AnuncioStep1Request;
 import com.imirly.backend.dto.request.AnuncioStep2Request;
 import com.imirly.backend.dto.response.AnuncioDetailResponse;
 import com.imirly.backend.dto.response.AnuncioResponse;
-import com.imirly.backend.entity.User;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.transaction.annotation.Transactional;
@@ -12,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 
 public interface AnuncioService {
+
     // Paso 1: Crear anuncio genérico
     AnuncioResponse createStep1(Long userId, AnuncioStep1Request request);
 
@@ -22,7 +22,7 @@ public interface AnuncioService {
     AnuncioResponse publicar(Long anuncioId, Long userId);
     AnuncioResponse despublicar(Long anuncioId, Long userId);
 
-    // CRUD
+    // CRUD - Lectura
     AnuncioDetailResponse getById(Long id);
     AnuncioDetailResponse getByIdForOwner(Long id, Long userId);
     List<AnuncioResponse> getMisAnuncios(Long userId);
@@ -30,13 +30,15 @@ public interface AnuncioService {
     Page<AnuncioResponse> getByCategory(Long categoryId, Pageable pageable);
     Page<AnuncioResponse> getBySubcategory(Long subcategoryId, Pageable pageable);
 
-    // Actualizar (solo si es BORRADOR o DESPUBLICADO)
+    // CRUD - Actualizar
     AnuncioResponse update(Long anuncioId, Long userId, AnuncioStep1Request request);
+
+    // Actualizar metadatos (PASO 2 en edición) - SOLO ESTE, elimina el otro
     AnuncioDetailResponse updateMetadata(Long anuncioId, Long userId, AnuncioStep2Request request);
 
-    // Eliminar (soft delete)
+    // CRUD - Eliminar (soft delete)
     void delete(Long anuncioId, Long userId);
 
-    @Transactional(readOnly = true)
+    // Para editar - carga anuncio con todos los datos
     AnuncioDetailResponse getByIdForEdit(Long id, Long userId);
 }
