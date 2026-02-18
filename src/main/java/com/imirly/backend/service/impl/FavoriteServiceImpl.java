@@ -81,16 +81,16 @@ public class FavoriteServiceImpl implements FavoriteService {
         return favoriteRepository.existsByUserIdAndAnuncioId(userId, anuncioId);
     }
 
-    // En FavoriteServiceImpl o AnuncioServiceImpl
+    @Override
+    @Transactional(readOnly = true)
     public Page<AnuncioResponse> findPublicExcluyendoMios(Long userId, Pageable pageable) {
-        Page<Anuncio> anuncios = anuncioRepository.findByStatusAndPropietarioIdNot(
-                AnuncioStatus.PUBLISHED, userId, pageable);
+        // Usa el método que ya existe en tu repository
+        Page<Anuncio> anuncios = anuncioRepository.findAllPublicadosExcluyendoUsuario(userId, pageable);
 
         return anuncios.map(anuncio -> {
-            AnuncioResponse dto = new AnuncioResponse();
-            // ... copiar todos los campos ...
-            dto.setFavorite(favoriteRepository.existsByUserIdAndAnuncioId(userId, anuncio.getId()));
-            return dto;
+            // Verificar si es favorito del usuario actual
+            boolean isFavorite = favoriteRepository.existsByUserIdAndAnuncioId(userId, anuncio.getId());
+            return mapToResponse(anuncio, isFavorite);
         });
     }
 

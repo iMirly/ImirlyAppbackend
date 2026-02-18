@@ -44,6 +44,7 @@ public interface AnuncioRepository extends JpaRepository<Anuncio, Long> {
     @Query("SELECT a FROM Anuncio a WHERE a.status = 'PUBLICADO' AND a.category.id = :categoryId AND a.propietario.id != :userId")
     Page<Anuncio> findByCategoryIdAndPublicadoExcluyendoUsuario(@Param("categoryId") Long categoryId, @Param("userId") Long userId, Pageable pageable);
 
+
     @Query("SELECT a FROM Anuncio a WHERE a.status = 'PUBLICADO' AND a.propietario.id != :userId " +
             "AND (:query IS NULL OR LOWER(a.titulo) LIKE LOWER(CONCAT('%', :query, '%')) OR LOWER(a.descripcion) LIKE LOWER(CONCAT('%', :query, '%'))) " +
             "AND (:categoryId IS NULL OR a.category.id = :categoryId)")

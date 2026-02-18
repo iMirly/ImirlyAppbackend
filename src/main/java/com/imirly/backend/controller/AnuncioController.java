@@ -7,6 +7,7 @@ import com.imirly.backend.dto.response.AnuncioResponse;
 import com.imirly.backend.entity.Anuncio;
 import com.imirly.backend.security.UserDetailsImpl;
 import com.imirly.backend.service.AnuncioService;
+import com.imirly.backend.service.FavoriteService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -23,6 +24,7 @@ import java.util.List;
 public class AnuncioController {
 
     private final AnuncioService anuncioService;
+    private final FavoriteService favoriteService;
 
     // ==================== CREAR ANUNCIO (2 PASOS) ====================
 
@@ -159,13 +161,14 @@ public class AnuncioController {
             @AuthenticationPrincipal UserDetailsImpl userDetails,
             Pageable pageable) {
 
-        Page<Anuncio> anuncios = anuncioService.findPublicExcluyendoMios(userDetails.getId(), pageable);
+        // Si userDetails es null, el usuario no está autenticado
+        if (userDetails == null) {
+            return ResponseEntity.ok(anuncioService.getAnunciosPublicos(pageable));
+        }
 
-        // IMPORTANTE: Mapear incluyendo isFavorite
-        Page<AnuncioResponse> response = anuncios.map(anuncio -> {
-            boolean isFav = favoriteService.isFavorite(userDetails.getId(), anuncio.getId());
-            return anuncioMapper.toResponse(anuncio, isFav); // <-- Debe incluir isFavorite
-        });
+        // Usa el método que implementamos en FavoriteService
+        Page<AnuncioResponse> response = favoriteService.findPublicExcluyendoMios(
+                userDetails.getId(), pageable);
 
         return ResponseEntity.ok(response);
     }

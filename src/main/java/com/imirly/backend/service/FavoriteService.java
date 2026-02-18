@@ -9,4 +9,5 @@ public interface FavoriteService {
     void removeFavorite(Long userId, Long anuncioId);
     Page<AnuncioResponse> getMisFavoritos(Long userId, Pageable pageable);
     boolean isFavorite(Long userId, Long anuncioId);
+    Page<AnuncioResponse> findPublicExcluyendoMios(Long userId, Pageable pageable);
 }
