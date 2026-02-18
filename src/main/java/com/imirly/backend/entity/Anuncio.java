@@ -104,6 +104,16 @@ public class Anuncio {
         }
     }
 
+    public void incrementFavoritesCount() {
+        this.favoritesCount++;
+    }
+
+    public void decrementFavoritesCount() {
+        if (this.favoritesCount > 0) {
+            this.favoritesCount--;
+        }
+    }
+
     public void eliminar() {
         this.status = AnuncioStatus.ELIMINADO;
     }

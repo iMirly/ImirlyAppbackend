@@ -4,6 +4,7 @@ import com.imirly.backend.dto.request.AnuncioStep1Request;
 import com.imirly.backend.dto.request.AnuncioStep2Request;
 import com.imirly.backend.dto.response.AnuncioDetailResponse;
 import com.imirly.backend.dto.response.AnuncioResponse;
+import com.imirly.backend.entity.Anuncio;
 import com.imirly.backend.security.UserDetailsImpl;
 import com.imirly.backend.service.AnuncioService;
 import lombok.RequiredArgsConstructor;
@@ -149,5 +150,44 @@ public class AnuncioController {
             @AuthenticationPrincipal UserDetailsImpl userDetails) {
 
         return ResponseEntity.ok(anuncioService.getByIdForEdit(id, userDetails.getId()));
+    }
+
+    // ==================== ANUNCIOS PÚBLICOS (EXCLUYENDO PROPIOS) ====================
+
+    @GetMapping("/public/excluyendo-mios")
+    public ResponseEntity<Page<AnuncioResponse>> getPublicExcluyendoMios(
+            @AuthenticationPrincipal UserDetailsImpl userDetails,
+            Pageable pageable) {
+
+        Page<Anuncio> anuncios = anuncioService.findPublicExcluyendoMios(userDetails.getId(), pageable);
+
+        // IMPORTANTE: Mapear incluyendo isFavorite
+        Page<AnuncioResponse> response = anuncios.map(anuncio -> {
+            boolean isFav = favoriteService.isFavorite(userDetails.getId(), anuncio.getId());
+            return anuncioMapper.toResponse(anuncio, isFav); // <-- Debe incluir isFavorite
+        });
+
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/public/excluyendo-mios/category/{categoryId}")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<Page<AnuncioResponse>> getByCategoryExcluyendoMios(
+            @PathVariable Long categoryId,
+            @AuthenticationPrincipal UserDetailsImpl userDetails,
+            Pageable pageable) {
+
+        return ResponseEntity.ok(anuncioService.getByCategoryExcluyendoUsuario(categoryId, userDetails.getId(), pageable));
+    }
+
+    @GetMapping("/public/excluyendo-mios/search")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<Page<AnuncioResponse>> searchPublicosExcluyendoMios(
+            @RequestParam(required = false) String query,
+            @RequestParam(required = false) Long categoryId,
+            @AuthenticationPrincipal UserDetailsImpl userDetails,
+            Pageable pageable) {
+
+        return ResponseEntity.ok(anuncioService.searchAnunciosPublicos(query, categoryId, userDetails.getId(), pageable));
     }
 }

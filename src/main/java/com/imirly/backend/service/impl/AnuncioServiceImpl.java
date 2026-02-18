@@ -316,6 +316,27 @@ public class AnuncioServiceImpl implements AnuncioService {
         return mapToDetailResponse(anuncio, false);
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public Page<AnuncioResponse> getAnunciosPublicosExcluyendoUsuario(Long userId, Pageable pageable) {
+        return anuncioRepository.findAllPublicadosExcluyendoUsuario(userId, pageable)
+                .map(a -> mapToResponse(a, false));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<AnuncioResponse> getByCategoryExcluyendoUsuario(Long categoryId, Long userId, Pageable pageable) {
+        return anuncioRepository.findByCategoryIdAndPublicadoExcluyendoUsuario(categoryId, userId, pageable)
+                .map(a -> mapToResponse(a, false));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<AnuncioResponse> searchAnunciosPublicos(String query, Long categoryId, Long userId, Pageable pageable) {
+        return anuncioRepository.searchPublicosExcluyendoUsuario(query, categoryId, userId, pageable)
+                .map(a -> mapToResponse(a, false));
+    }
+
     // Mappers
     private AnuncioResponse mapToResponse(Anuncio anuncio, boolean isFavorite) {
         return AnuncioResponse.builder()

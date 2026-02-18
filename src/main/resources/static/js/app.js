@@ -1077,7 +1077,7 @@ function renderizarPublicos(anuncios) {
     }
 
     container.innerHTML = anuncios.map(a => `
-        <div class="anuncio-item">
+        <div class="anuncio-item" data-id="${a.id}">
             <img src="${a.imagenPrincipalUrl || 'https://via.placeholder.com/80'}" class="anuncio-imagen" alt="">
             <div class="anuncio-info">
                 <div class="anuncio-titulo">${a.titulo}</div>
@@ -1090,8 +1090,12 @@ function renderizarPublicos(anuncios) {
                 <div class="muted small">❤️ ${a.favoritesCount} favoritos</div>
             </div>
             <div class="anuncio-actions">
-                <button onclick="contactar(${a.id})">📞 Contactar</button>
-                <button class="secondary" onclick="toggleFavorito(${a.id})">❤️</button>
+                <button onclick="contactar(${a.id}, '${a.propietarioNombre}')">📞 Contactar</button>
+                <button class="secondary ${a.isFavorite ? 'favorite-active' : ''}" 
+                        onclick="toggleFavorito(${a.id}, this)" 
+                        title="${a.isFavorite ? 'Quitar de favoritos' : 'Añadir a favoritos'}">
+                    ${a.isFavorite ? '❤️' : '🤍'}
+                </button>
             </div>
         </div>
     `).join('');
@@ -1121,4 +1125,337 @@ function showError(fieldId, message) {
 
 function clearErrors() {
     document.querySelectorAll('.error').forEach(el => el.textContent = '');
+}
+
+// ==================== EXPLORAR ANUNCIOS PÚBLICOS (MEJORADO) ====================
+
+async function loadPublicAnunciosExcluyendoMios() {
+    try {
+        const response = await fetch(`${API_URL}/anuncios/public/excluyendo-mios`, {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        const data = await response.json();
+        renderizarPublicos(data.content || data);
+    } catch (error) {
+        document.getElementById('publicAnunciosList').innerHTML = '<p class="error">Error cargando anuncios</p>';
+    }
+}
+
+async function filtrarPublicos() {
+    const categoriaId = document.getElementById('filtroCategoria').value;
+    const busqueda = document.getElementById('filtroBusqueda').value.trim();
+
+    try {
+        let url = `${API_URL}/anuncios/public/excluyendo-mios/search?`;
+        if (busqueda) url += `query=${encodeURIComponent(busqueda)}&`;
+        if (categoriaId) url += `categoryId=${categoriaId}&`;
+
+        const response = await fetch(url, {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        const data = await response.json();
+        renderizarPublicos(data.content || data);
+    } catch (error) {
+        console.error('Error filtrando:', error);
+    }
+}
+
+// Modificar renderizarPublicos para incluir favoritos funcionales
+function renderizarPublicos(anuncios) {
+    const container = document.getElementById('publicAnunciosList');
+
+    if (anuncios.length === 0) {
+        container.innerHTML = '<p class="muted">No hay servicios disponibles</p>';
+        return;
+    }
+
+    container.innerHTML = anuncios.map(a => `
+        <div class="anuncio-item" data-id="${a.id}">
+            <img src="${a.imagenPrincipalUrl || 'https://via.placeholder.com/80'}" class="anuncio-imagen" alt="">
+            <div class="anuncio-info">
+                <div class="anuncio-titulo">${a.titulo}</div>
+                <div class="anuncio-meta">
+                    ${a.categoryNombre} → ${a.subcategoryNombre} |
+                    ${a.ubicacion} |
+                    Por ${a.propietarioNombre}
+                </div>
+                <div class="anuncio-precio">${a.precio}€ ${a.tipoPrecio.replace('POR_', '/').toLowerCase()}</div>
+                <div class="muted small">❤️ ${a.favoritesCount} favoritos</div>
+            </div>
+            <div class="anuncio-actions">
+                <button onclick="contactar(${a.id}, '${a.propietarioNombre}')">📞 Contactar</button>
+                <button class="secondary ${a.isFavorite ? 'favorite-active' : ''}" 
+                        onclick="toggleFavorito(${a.id}, this)" 
+                        title="${a.isFavorite ? 'Quitar de favoritos' : 'Añadir a favoritos'}">
+                    ${a.isFavorite ? '❤️' : '🤍'}
+                </button>
+            </div>
+        </div>
+    `).join('');
+}
+
+// ==================== FAVORITOS ====================
+
+async function toggleFavorito(anuncioId, btnElement) {
+    const isFavorite = btnElement.classList.contains('favorite-active');
+
+    try {
+        if (isFavorite) {
+            // Quitar de favoritos
+            await fetch(`${API_URL}/favorites/${anuncioId}`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Bearer ${authToken}` }
+            });
+
+            // Si estamos en la pestaña de favoritos, eliminar el card completo
+            if (!document.getElementById('publicAnunciosList')) {
+                // Estamos en favoritos, eliminar el elemento
+                const card = btnElement.closest('.anuncio-item');
+                if (card) card.remove();
+
+                // Si no quedan favoritos, mostrar mensaje
+                const container = document.getElementById('misFavoritosList');
+                if (container && container.children.length === 0) {
+                    container.innerHTML = '<p class="muted">No tienes favoritos aún</p>';
+                }
+            } else {
+                // Estamos en explorar, solo cambiar el icono
+                btnElement.classList.remove('favorite-active');
+                btnElement.innerHTML = '🤍';
+                btnElement.title = 'Añadir a favoritos';
+
+                // Actualizar el contador visualmente (opcional, o recargar solo ese dato)
+                actualizarContadorFavoritos(anuncioId, -1);
+            }
+
+        } else {
+            // Añadir a favoritos
+            await fetch(`${API_URL}/favorites/${anuncioId}`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${authToken}` }
+            });
+
+            // Solo cambiar el icono, NUNCA redirigir ni eliminar
+            btnElement.classList.add('favorite-active');
+            btnElement.innerHTML = '❤️';
+            btnElement.title = 'Quitar de favoritos';
+
+            // Actualizar contador visualmente
+            actualizarContadorFavoritos(anuncioId, +1);
+        }
+
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Error: ' + error.message);
+    }
+}
+
+function actualizarContadorFavoritos(anuncioId, cambio) {
+    const card = document.querySelector(`.anuncio-item[data-id="${anuncioId}"]`);
+    if (card) {
+        const contadorElement = card.querySelector('.muted.small');
+        if (contadorElement) {
+            const match = contadorElement.textContent.match(/(\d+)/);
+            if (match) {
+                const nuevoCount = parseInt(match[1]) + cambio;
+                contadorElement.textContent = `❤️ ${nuevoCount} favoritos`;
+            }
+        }
+    }
+}
+
+async function loadMisFavoritos() {
+    try {
+        const response = await fetch(`${API_URL}/favorites/mis-favoritos`, {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+
+        if (!response.ok) throw new Error('Error al cargar favoritos');
+
+        const data = await response.json();
+        const container = document.getElementById('misFavoritosList');
+
+        if (!container) return;
+
+        // Si no hay contenido o está vacío
+        if (!data.content || data.content.length === 0) {
+            container.innerHTML = '<p class="muted">No tienes favoritos aún</p>';
+            return;
+        }
+
+        container.innerHTML = data.content.map(a => `
+            <div class="anuncio-item" data-id="${a.id}">
+                <img src="${a.imagenPrincipalUrl || 'https://via.placeholder.com/80'}" class="anuncio-imagen" alt="">
+                <div class="anuncio-info">
+                    <div class="anuncio-titulo">${a.titulo}</div>
+                    <div class="anuncio-meta">${a.categoryNombre} | ${a.ubicacion}</div>
+                    <div class="anuncio-precio">${a.precio}€</div>
+                </div>
+                <div class="anuncio-actions">
+                    <button onclick="contactar(${a.id}, '${a.propietarioNombre}')">📞 Contactar</button>
+                    <button class="danger" onclick="quitarFavoritoDesdeFavoritos(${a.id}, this)">💔 Quitar</button>
+                </div>
+            </div>
+        `).join('');
+
+    } catch (error) {
+        console.error('Error cargando favoritos:', error);
+        document.getElementById('misFavoritosList').innerHTML = '<p class="error">Error cargando favoritos</p>';
+    }
+}
+
+// Función específica para quitar desde la pestaña favoritos
+async function quitarFavoritoDesdeFavoritos(anuncioId, btnElement) {
+    try {
+        await fetch(`${API_URL}/favorites/${anuncioId}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+
+        // Eliminar el card completo
+        const card = btnElement.closest('.anuncio-item');
+        if (card) {
+            card.remove();
+
+            // Si no quedan favoritos, mostrar mensaje
+            const container = document.getElementById('misFavoritosList');
+            if (container && container.children.length === 0) {
+                container.innerHTML = '<p class="muted">No tienes favoritos aún</p>';
+            }
+        }
+
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Error al quitar de favoritos');
+    }
+}
+
+// ==================== MENSAJES ====================
+
+// Almacén temporal de conversaciones (hasta que implementes backend)
+let conversaciones = JSON.parse(localStorage.getItem('conversaciones') || '{}');
+
+function contactar(anuncioId, propietarioNombre) {
+    // Crear o abrir conversación
+    const convId = `conv_${anuncioId}`;
+    if (!conversaciones[convId]) {
+        conversaciones[convId] = {
+            anuncioId: anuncioId,
+            propietario: propietarioNombre,
+            mensajes: [],
+            unread: 0
+        };
+    }
+
+    localStorage.setItem('conversaciones', JSON.stringify(conversaciones));
+
+    // Mostrar pantalla de mensajes
+    showScreen('mensajes');
+    renderizarConversaciones();
+
+    // Abrir chat específico
+    abrirChat(convId);
+}
+
+function renderizarConversaciones() {
+    const container = document.getElementById('listaConversaciones');
+    if (!container) return;
+
+    const convs = Object.values(conversaciones);
+
+    if (convs.length === 0) {
+        container.innerHTML = '<p class="muted">No tienes mensajes aún</p>';
+        return;
+    }
+
+    container.innerHTML = convs.map(c => `
+        <div class="conversacion-item ${c.unread > 0 ? 'unread' : ''}" onclick="abrirChat('${c.anuncioId}')">
+            <div class="conv-info">
+                <strong>${c.propietario}</strong>
+                <span class="last-msg">${c.mensajes.length > 0 ? c.mensajes[c.mensajes.length-1].texto.substring(0, 30) + '...' : 'Sin mensajes'}</span>
+            </div>
+            ${c.unread > 0 ? `<span class="badge">${c.unread}</span>` : ''}
+        </div>
+    `).join('');
+}
+
+function abrirChat(convId) {
+    const conv = conversaciones[convId];
+    if (!conv) return;
+
+    // Marcar como leído
+    conv.unread = 0;
+    localStorage.setItem('conversaciones', JSON.stringify(conversaciones));
+    renderizarConversaciones();
+
+    const chatContainer = document.getElementById('chatActivo');
+    chatContainer.innerHTML = `
+        <div class="chat-header">
+            <h4>Chat con ${conv.propietario}</h4>
+            <button onclick="cerrarChat()">✕</button>
+        </div>
+        <div class="chat-mensajes" id="mensajesChat">
+            ${conv.mensajes.map(m => `
+                <div class="mensaje ${m.mio ? 'mio' : 'suyo'}">
+                    <span>${m.texto}</span>
+                    <small>${m.fecha}</small>
+                </div>
+            `).join('')}
+        </div>
+        <div class="chat-input">
+            <input type="text" id="nuevoMensaje" placeholder="Escribe un mensaje..." onkeypress="if(event.key==='Enter') enviarMensaje('${convId}')">
+            <button onclick="enviarMensaje('${convId}')">Enviar</button>
+        </div>
+    `;
+
+    // Scroll al final
+    const msgContainer = document.getElementById('mensajesChat');
+    if (msgContainer) msgContainer.scrollTop = msgContainer.scrollHeight;
+}
+
+function enviarMensaje(convId) {
+    const input = document.getElementById('nuevoMensaje');
+    const texto = input.value.trim();
+    if (!texto) return;
+
+    const mensaje = {
+        texto: texto,
+        mio: true,
+        fecha: new Date().toLocaleString()
+    };
+
+    conversaciones[convId].mensajes.push(mensaje);
+    localStorage.setItem('conversaciones', JSON.stringify(conversaciones));
+
+    input.value = '';
+    abrirChat(convId);
+
+    // Simular respuesta (temporal hasta backend)
+    setTimeout(() => {
+        conversaciones[convId].mensajes.push({
+            texto: "Gracias por tu mensaje. Te responderé pronto.",
+            mio: false,
+            fecha: new Date().toLocaleString()
+        });
+        localStorage.setItem('conversaciones', JSON.stringify(conversaciones));
+
+        // Si no está abierto, marcar como no leído
+        if (!document.getElementById('mensajesChat')) {
+            conversaciones[convId].unread++;
+        }
+
+        localStorage.setItem('conversaciones', JSON.stringify(conversaciones));
+
+        // Actualizar UI si está visible
+        if (document.getElementById('screen-mensajes').classList.contains('hidden') === false) {
+            renderizarConversaciones();
+            if (document.getElementById('mensajesChat')) {
+                abrirChat(convId);
+            }
+        }
+    }, 2000);
+}
+
+function cerrarChat() {
+    document.getElementById('chatActivo').innerHTML = '<p class="muted">Selecciona una conversación</p>';
 }

@@ -30,6 +30,12 @@ public interface AnuncioService {
     Page<AnuncioResponse> getByCategory(Long categoryId, Pageable pageable);
     Page<AnuncioResponse> getBySubcategory(Long subcategoryId, Pageable pageable);
 
+
+    Page<AnuncioResponse> getAnunciosPublicosExcluyendoUsuario(Long userId, Pageable pageable);
+    Page<AnuncioResponse> getByCategoryExcluyendoUsuario(Long categoryId, Long userId, Pageable pageable);
+    Page<AnuncioResponse> searchAnunciosPublicos(String query, Long categoryId, Long userId, Pageable pageable);
+
+
     // CRUD - Actualizar
     AnuncioResponse update(Long anuncioId, Long userId, AnuncioStep1Request request);
 

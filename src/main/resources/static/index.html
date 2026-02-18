@@ -98,6 +98,12 @@
 
         <button class="primary" onclick="goExplore()">🔍 Ver servicios disponibles</button>
 
+        <hr />
+        <button onclick="showScreen('favoritos'); loadMisFavoritos();">❤️ Mis Favoritos</button>
+
+        <hr />
+        <button onclick="showScreen('mensajes'); renderizarConversaciones();">💬 Mensajes</button>
+
         <!-- Formulario editar perfil -->
         <div id="editProfileForm" class="hidden form-section">
           <h4>Completar datos personales</h4>
@@ -249,6 +255,38 @@
 
       <div id="publicAnunciosList" class="list"></div>
       <div id="err-publicAnunciosGeneral" class="error"></div>
+    </div>
+  </section>
+
+  <!-- ==================== SCREEN: MENSAJES ==================== -->
+  <section id="screen-mensajes" class="hidden">
+    <div class="card">
+      <div class="toolbar">
+        <h3 style="margin:0; flex:1;">💬 Mensajes</h3>
+        <button onclick="goDashboard()">← Volver</button>
+      </div>
+      <div class="mensajes-layout">
+        <div id="listaConversaciones" class="conversaciones-lista">
+          <p class="muted">Cargando...</p>
+        </div>
+        <div id="chatActivo" class="chat-activo">
+          <p class="muted">Selecciona una conversación</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==================== SCREEN: FAVORITOS ==================== -->
+  <section id="screen-favoritos" class="hidden">
+    <div class="card">
+      <div class="toolbar">
+        <h3 style="margin:0; flex:1;">❤️ Mis Favoritos</h3>
+        <button onclick="goDashboard()">← Volver</button>
+        <button onclick="loadMisFavoritos()">🔄 Recargar</button>
+      </div>
+      <div id="misFavoritosList" class="list">
+        <p class="muted">Cargando...</p>
+      </div>
     </div>
   </section>
 
