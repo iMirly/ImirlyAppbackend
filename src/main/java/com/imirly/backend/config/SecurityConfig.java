@@ -19,6 +19,12 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
+import java.util.Arrays;
+import java.util.List;
 
 @Configuration
 @EnableWebSecurity
@@ -26,104 +32,111 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @RequiredArgsConstructor
 public class SecurityConfig {
 
-    private final JwtAuthenticationFilter jwtAuthenticationFilter;
-    private final UserDetailsService userDetailsService;
+        private final JwtAuthenticationFilter jwtAuthenticationFilter;
+        private final UserDetailsService userDetailsService;
 
-    @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+        @Bean
+        public CorsConfigurationSource corsConfigurationSource() {
+                CorsConfiguration configuration = new CorsConfiguration();
+                configuration.setAllowedOrigins(List.of("*"));
+                configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+                configuration.setAllowedHeaders(List.of("*"));
+                configuration.setExposedHeaders(List.of("*"));
 
-        http
-                //  CSRF desactivado (API REST + JWT)
-                .csrf(csrf -> csrf.disable())
+                UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+                source.registerCorsConfiguration("/**", configuration);
+                return source;
+        }
 
-                //  CORS (importante para frontend / Android)
-                .cors(Customizer.withDefaults())
+        @Bean
+        public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
 
-                //  Stateless (JWT)
-                .sessionManagement(session ->
-                        session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
-                )
+                http
+                                // CSRF desactivado (API REST + JWT)
+                                .csrf(csrf -> csrf.disable())
 
-                //  AUTORIZACIÓN
-                .authorizeHttpRequests(auth -> auth
+                                // CORS (importante para frontend / Android)
+                                .cors(Customizer.withDefaults())
 
-                        // ─────────────────────────────
-                        //  FRONTEND ESTÁTICO (PÚBLICO)
-                        // ─────────────────────────────
-                        .requestMatchers(
-                                "/",
-                                "/index.html",
-                                "/favicon.ico",
-                                "/css/**",
-                                "/js/**",
-                                "/static/**"
-                        ).permitAll()
+                                // Stateless (JWT)
+                                .sessionManagement(session -> session
+                                                .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
-                        // ─────────────────────────────
-                        //  H2 CONSOLE (DEV)
-                        // ─────────────────────────────
-                        .requestMatchers("/h2-console/**").permitAll()
+                                // AUTORIZACIÓN
+                                .authorizeHttpRequests(auth -> auth
 
-                        // ─────────────────────────────
-                        //  AUTH
-                        // ─────────────────────────────
-                        .requestMatchers("/api/auth/**").permitAll()
+                                                // ─────────────────────────────
+                                                // FRONTEND ESTÁTICO (PÚBLICO)
+                                                // ─────────────────────────────
+                                                .requestMatchers(
+                                                                "/",
+                                                                "/index.html",
+                                                                "/favicon.ico",
+                                                                "/css/**",
+                                                                "/js/**",
+                                                                "/static/**")
+                                                .permitAll()
 
-                        // ─────────────────────────────
-                        //  DATOS PÚBLICOS
-                        // ─────────────────────────────
-                        .requestMatchers(HttpMethod.GET, "/api/categories/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/anuncios/public/**").permitAll()
+                                                // ─────────────────────────────
+                                                // H2 CONSOLE (DEV)
+                                                // ─────────────────────────────
+                                                .requestMatchers("/h2-console/**").permitAll()
 
-                        // ─────────────────────────────
-                        //  RESTO REQUIERE JWT
-                        // ─────────────────────────────
-                        .anyRequest().authenticated()
-                )
+                                                // ─────────────────────────────
+                                                // AUTH
+                                                // ─────────────────────────────
+                                                .requestMatchers("/api/auth/**").permitAll()
 
-                //  Provider de autenticación
-                .authenticationProvider(authenticationProvider())
+                                                // ─────────────────────────────
+                                                // DATOS PÚBLICOS
+                                                // ─────────────────────────────
+                                                .requestMatchers(HttpMethod.GET, "/api/categories/**").permitAll()
+                                                .requestMatchers(HttpMethod.GET, "/api/anuncios/public/**").permitAll()
 
-                //  Filtro JWT
-                .addFilterBefore(
-                        jwtAuthenticationFilter,
-                        UsernamePasswordAuthenticationFilter.class
-                );
+                                                // ─────────────────────────────
+                                                // RESTO REQUIERE JWT
+                                                // ─────────────────────────────
+                                                .anyRequest().authenticated())
 
-        //  H2 Console necesita frames
-        http.headers(headers ->
-                headers.frameOptions(frame -> frame.sameOrigin())
-        );
+                                // Provider de autenticación
+                                .authenticationProvider(authenticationProvider())
 
-        return http.build();
-    }
+                                // Filtro JWT
+                                .addFilterBefore(
+                                                jwtAuthenticationFilter,
+                                                UsernamePasswordAuthenticationFilter.class);
 
-    // ─────────────────────────────
-    // AUTH PROVIDER
-    // ─────────────────────────────
-    @Bean
-    public AuthenticationProvider authenticationProvider() {
-        DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider();
-        authProvider.setUserDetailsService(userDetailsService);
-        authProvider.setPasswordEncoder(passwordEncoder());
-        return authProvider;
-    }
+                // H2 Console necesita frames
+                http.headers(headers -> headers.frameOptions(frame -> frame.sameOrigin()));
 
-    // ─────────────────────────────
-    // AUTH MANAGER
-    // ─────────────────────────────
-    @Bean
-    public AuthenticationManager authenticationManager(
-            AuthenticationConfiguration config
-    ) throws Exception {
-        return config.getAuthenticationManager();
-    }
+                return http.build();
+        }
 
-    // ─────────────────────────────
-    // PASSWORD ENCODER
-    // ─────────────────────────────
-    @Bean
-    public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
-    }
+        // ─────────────────────────────
+        // AUTH PROVIDER
+        // ─────────────────────────────
+        @Bean
+        public AuthenticationProvider authenticationProvider() {
+                DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider();
+                authProvider.setUserDetailsService(userDetailsService);
+                authProvider.setPasswordEncoder(passwordEncoder());
+                return authProvider;
+        }
+
+        // ─────────────────────────────
+        // AUTH MANAGER
+        // ─────────────────────────────
+        @Bean
+        public AuthenticationManager authenticationManager(
+                        AuthenticationConfiguration config) throws Exception {
+                return config.getAuthenticationManager();
+        }
+
+        // ─────────────────────────────
+        // PASSWORD ENCODER
+        // ─────────────────────────────
+        @Bean
+        public PasswordEncoder passwordEncoder() {
+                return new BCryptPasswordEncoder();
+        }
 }
